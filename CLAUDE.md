@@ -1,2 +1,2 @@
 Before generating a response, always read README.md (/Users/dmytrodavydov/Work/ai-defense-platform/README.md),
-and all related to the task documents in the docs folder, starting from docs/MOC.md. If any info is missing in the knoledge base, don't guess, let know and research.
+and all related to the task documents in the docs folder, starting from docs/MOC.md. If any info is missing in the knoledge base, don't guess, let know and research. Always update Progress.md (/Users/dmytrodavydov/Work/ai-defense-platform/docs/roadmap/Progress.md), on completing a task.

@@ -58,6 +58,7 @@ nothing grounded to document there until Phases 4/5/9.
 
 ## Roadmap and planning — what happens when
 
+- [[Progress]] — live checklist of what's done, updated per completed task.
 - [[AI_Defense_Platform_Roadmap]] — the full 15-phase strategy.
 - [[Sprint_0_Foundation]] — Sprint 0 backlog and Definition of Done (this
   is the sprint that produced everything in Foundation/Architecture/Governance above).
