@@ -1,0 +1,24 @@
+{
+  "name": "@ai-defense/edge-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Edge/Jetson runtime agent. Empty stub in Phase 1 — implemented in Phase 9 (docs/mvp-plan/PRD-Phase-1.md REQ-1.7).",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "echo \"@ai-defense/edge-agent: stub, implemented in Phase 9\" && exit 0",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@ai-defense/observability": "workspace:*"
+  },
+  "devDependencies": {
+    "@ai-defense/eslint-config": "workspace:*",
+    "@ai-defense/ts-config": "workspace:*",
+    "@types/node": "^22.10.2",
+    "eslint": "^9.17.0",
+    "typescript": "^5.7.2"
+  }
+}

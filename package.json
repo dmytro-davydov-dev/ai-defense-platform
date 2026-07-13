@@ -1,0 +1,48 @@
+{
+  "name": "ai-defense-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI Defense Platform monorepo — architecture-first reference platform for event-driven computer-vision systems.",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.15.9",
+  "scripts": {
+    "build": "nx run-many -t build",
+    "lint": "nx run-many -t lint",
+    "typecheck": "nx run-many -t typecheck",
+    "test": "nx run-many -t test",
+    "build:affected": "nx affected -t build",
+    "lint:affected": "nx affected -t lint",
+    "typecheck:affected": "nx affected -t typecheck",
+    "test:affected": "nx affected -t test",
+    "format": "prettier --write \"apps/**/*.{ts,tsx,js,jsx,json}\" \"packages/**/*.{ts,tsx,js,jsx,json}\" \"infrastructure/**/*.{yml,yaml}\" \".github/**/*.{yml,yaml}\" \"*.json\"",
+    "format:check": "prettier --check \"apps/**/*.{ts,tsx,js,jsx,json}\" \"packages/**/*.{ts,tsx,js,jsx,json}\" \"infrastructure/**/*.{yml,yaml}\" \".github/**/*.{yml,yaml}\" \"*.json\"",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.5.0",
+    "@commitlint/config-conventional": "^19.5.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.10",
+    "nx": "^20.3.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.2"
+  },
+  "lint-staged": {
+    "apps/**/*.{ts,tsx,js,jsx,json}": [
+      "prettier --write"
+    ],
+    "packages/**/*.{ts,tsx,js,jsx,json}": [
+      "prettier --write"
+    ],
+    "infrastructure/**/*.{yml,yaml}": [
+      "prettier --write"
+    ],
+    ".github/**/*.{yml,yaml}": [
+      "prettier --write"
+    ]
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "name": "@ai-defense/observability",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared OpenTelemetry wiring stub (structured logging, correlation-ID propagation, health/readiness helpers) for TS apps. Populated incrementally from Phase 1 onward.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "echo \"@ai-defense/observability: no tests yet\" && exit 0"
+  },
+  "devDependencies": {
+    "@ai-defense/eslint-config": "workspace:*",
+    "@ai-defense/ts-config": "workspace:*",
+    "@types/node": "^22.10.2",
+    "eslint": "^9.17.0",
+    "typescript": "^5.7.2"
+  }
+}

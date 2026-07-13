@@ -1,0 +1,99 @@
+name: CI
+
+# Quality gates required on every PR — REQ-1.19/1.20 in
+# docs/mvp-plan/PRD-Phase-1.md: lint -> type-check -> unit test -> build
+# -> docker build, per affected app/package. All jobs must pass before
+# merge (branch protection is configured separately in repo settings,
+# see CONTRIBUTING.md).
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PNPM_VERSION: "9.15.9"
+  NODE_VERSION: "20"
+
+jobs:
+  commitlint:
+    name: Conventional Commits
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm dlx commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }} --verbose
+
+  ts-quality:
+    name: TS lint / typecheck / test / build (affected)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: nrwl/nx-set-shas@v4
+      - run: pnpm exec nx affected -t lint --base=$NX_BASE --head=$NX_HEAD
+      - run: pnpm exec nx affected -t typecheck --base=$NX_BASE --head=$NX_HEAD
+      - run: pnpm exec nx affected -t test --base=$NX_BASE --head=$NX_HEAD
+      - run: pnpm exec nx affected -t build --base=$NX_BASE --head=$NX_HEAD
+      - run: pnpm format:check
+
+  python-quality:
+    name: Python lint / test (vision-service)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/vision-service
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "0.5.14"
+      - name: Set up Python 3.12
+        run: uv python install 3.12
+      - run: uv sync --all-extras
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run pytest --cov
+
+  docker-build:
+    name: Docker build (${{ matrix.app }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: [web, api, vision-service]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build ${{ matrix.app }} image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.app == 'vision-service' && 'apps/vision-service' || '.' }}
+          file: apps/${{ matrix.app }}/Dockerfile
+          push: false
+          tags: ai-defense/${{ matrix.app }}:ci
+          cache-from: type=gha,scope=${{ matrix.app }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.app }}

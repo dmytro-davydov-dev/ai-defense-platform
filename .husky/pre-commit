@@ -1,0 +1,6 @@
+npx lint-staged
+
+if git diff --cached --name-only | grep -q '^apps/vision-service/.*\.py$'; then
+  echo "Running ruff on apps/vision-service (staged Python changes)..."
+  (cd apps/vision-service && uv run ruff check . && uv run ruff format --check .) || exit 1
+fi

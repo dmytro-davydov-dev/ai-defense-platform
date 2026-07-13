@@ -1,0 +1,54 @@
+[project]
+name = "vision-service"
+version = "0.1.0"
+description = "Python + FastAPI vision worker shell. Phase 1 scaffold; OpenCV/YOLO/ONNX Runtime pipeline lands in Phases 4-5."
+requires-python = ">=3.12"
+readme = "README.md"
+license = { text = "UNLICENSED" }
+dependencies = [
+  "fastapi>=0.115.6",
+  "uvicorn[standard]>=0.34.0",
+  "pydantic>=2.10.4",
+  "pydantic-settings>=2.7.1",
+]
+
+[dependency-groups]
+dev = [
+  "ruff>=0.8.4",
+  "pytest>=8.3.4",
+  "pytest-cov>=6.0.0",
+  "httpx>=0.28.1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vision_service"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+  "E",   # pycodestyle
+  "F",   # pyflakes
+  "I",   # isort
+  "UP",  # pyupgrade
+  "B",   # flake8-bugbear
+  "N",   # pep8-naming
+  "SIM", # flake8-simplify
+]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.coverage.run]
+source = ["src/vision_service"]

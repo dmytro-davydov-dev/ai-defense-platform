@@ -1,0 +1,16 @@
+dist
+build
+coverage
+node_modules
+.nx
+pnpm-lock.yaml
+apps/vision-service/.venv
+apps/vision-service/uv.lock
+
+# docs/ is Dmytro's Obsidian knowledge-base vault (docs/MOC.md) — content
+# and formatting are authored/owned there, not by this repo's TS/Prettier
+# tooling. Root-level vision/goals/principles notes are the same vault.
+docs/
+Vision.md
+Guiding_Principles.md
+Goals.md

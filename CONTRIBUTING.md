@@ -1,0 +1,73 @@
+# Contributing
+
+## Branch strategy
+
+- `main` is always releasable; direct pushes are disabled — all changes
+  land via pull request.
+- Branch names: `<type>/<short-description>`, matching the Conventional
+  Commit type of the change (e.g. `feat/mission-crud`,
+  `fix/outbox-retry`, `docs/adr-004`).
+- Keep PRs small and reviewable, per
+  `docs/architecture/Coding_Standards.md`. A PR should map to one
+  logical change, not a whole phase.
+- Rebase (not merge-commit) onto `main` before requesting review, to
+  keep history linear and Conventional-Commit-clean.
+- Squash-merge on completion so `main` gets one Conventional Commit per
+  PR; the PR title becomes the squash commit message and must itself
+  follow Conventional Commits.
+
+## Release strategy
+
+- Phase 1 has no release artifact beyond `main` being green — every
+  merged PR is deployable to the local Compose stack by definition
+  (CI's docker-build job proves the images build).
+- Tagged releases (`vX.Y.Z`) start once Phase 2 ships a real API
+  surface worth versioning; until then, `main` is the source of truth.
+- Any significant architectural change requires an ADR under
+  `docs/adr/` before or alongside the PR that implements it, per
+  `docs/architecture/Coding_Standards.md`.
+
+## Conventional Commits
+
+Enforced by commitlint (`commitlint.config.cjs`) via a `commit-msg` git
+hook (Husky) locally, and again in CI on every PR
+(`.github/workflows/ci.yml`, `commitlint` job). Format:
+
+```text
+<type>(<optional scope>): <description>
+
+[optional body]
+
+[optional footer]
+```
+
+Common types: `feat`, `fix`, `docs`, `chore`, `refactor`, `test`, `ci`,
+`build`. Example: `feat(api): add mission CRUD endpoints`.
+
+## Local setup
+
+See the root `README.md` for `docker compose up` and per-app dev
+commands.
+
+After cloning, run once:
+
+```bash
+pnpm install   # installs Husky hooks via the root "prepare" script
+```
+
+Pre-commit runs Prettier/ESLint on staged TS files (`lint-staged`) and
+Ruff on staged Python files under `apps/vision-service`. Commit messages
+are validated by commitlint on `commit-msg`.
+
+## Pull request checklist
+
+- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` pass
+      locally (or rely on CI's `nx affected` equivalents).
+- [ ] `uv run ruff check .`, `uv run pytest` pass in
+      `apps/vision-service` if Python files changed.
+- [ ] New/changed contracts or events are versioned
+      (`docs/architecture/Coding_Standards.md`).
+- [ ] A significant architectural change includes an ADR, updated
+      diagrams, and migration/rollback notes.
+- [ ] No secrets committed; `.env.example` updated if new config was
+      added.
