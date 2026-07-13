@@ -185,6 +185,7 @@
   },
   "active": "c526e72e4765129c",
   "lastOpenFiles": [
+    "architecture/Mission_State_Machine.md",
     "mvp-plan/PRD-Phase-2.md",
     "adr/ADR-004-nestjs-orm.md",
     "roadmap/Progress.md",

@@ -2,12 +2,12 @@
 title: "ADR-004: NestJS ORM — Prisma"
 type: adr
 tags: [adr, backend, phase2]
-status: proposed
+status: accepted
 ---
 
 # ADR-004: NestJS ORM — Prisma
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-07-13
 - Decision owners: Dmytro
 - Related documents: [[PRD-Phase-2]], [[MVP_Implementation_Plan]], [[Coding_Standards]], [[Technology_Decisions]]

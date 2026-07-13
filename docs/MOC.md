@@ -35,6 +35,7 @@ notes that build on it.
 
 ## Implementation notes — what Phase 1 actually built
 
+- [[Mission_State_Machine]] — Phase 2's mission lifecycle (draft → queued → processing → completed/failed).
 - [[Web_Shell]] — `apps/web` React+Vite scaffold.
 - [[API_Shell]] — `apps/api` NestJS scaffold.
 - [[Vision_Service_Shell]] — `apps/vision-service` FastAPI+uv scaffold.

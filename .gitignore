@@ -9,6 +9,10 @@ build/
 out/
 *.tsbuildinfo
 
+# Prisma generated client (regenerated via `prisma generate`, see
+# apps/api/package.json's build/typecheck/test scripts)
+apps/api/generated/
+
 # Nx
 .nx/cache/
 .nx/workspace-data/
