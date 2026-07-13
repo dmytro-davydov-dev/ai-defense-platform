@@ -94,8 +94,7 @@ below.
 ## Phase 2 — Core Platform and Identity
 
 Tracking [[PRD-Phase-2]] requirements (REQ-2.1–2.14). ORM choice
-recorded in [[ADR-004-nestjs-orm]] (Prisma, status: proposed — accept
-before REQ-2.1 implementation begins).
+recorded in [[ADR-004-nestjs-orm]] (Prisma, status: accepted).
 
 ### Data model and migrations
 
@@ -116,7 +115,7 @@ before REQ-2.1 implementation begins).
 
 ### Upload and storage
 
-- [ ] REQ-2.9 — signed upload/download URLs against MinIO (S3 SDK)
+- [x] REQ-2.9 — signed upload/download URLs against MinIO (S3 SDK) — `StorageModule` (`src/storage/`); **temporarily unauthenticated**, see Known gaps and [[Security_Baseline]]; routes are top-level, not yet mission-scoped
 
 ### Audit baseline
 
@@ -124,12 +123,12 @@ before REQ-2.1 implementation begins).
 
 ### API surface and documentation
 
-- [ ] REQ-2.11 — OpenAPI spec generated, Swagger UI at `/docs`
+- [x] REQ-2.11 — OpenAPI spec generated, Swagger UI at `/docs` — `@nestjs/swagger` wired in `main.ts`, global `ValidationPipe` added
 - [ ] REQ-2.12 — OpenAPI spec exported into `packages/contracts`
 
 ### Testing
 
-- [ ] REQ-2.13 — unit tests: state machine, RBAC guard
+- [ ] REQ-2.13 — unit tests: state machine, RBAC guard (neither exists yet — blocked with AuthModule/MissionModule)
 - [ ] REQ-2.14 — integration tests: Postgres + MinIO adapters, illegal-transition rejection
 
 **Phase 2 exit:** all boxes above checked, plus the Definition of Done
@@ -162,6 +161,15 @@ in [[PRD-Phase-2]] Section 8.
   the same work session as `AuthModule`/`MissionModule` (REQ-2.4+) so
   the `build`/`typecheck`/`test` scripts aren't chained to `prisma
   generate` before any real code needs the generated client.
+- **`StorageModule`'s `/storage/upload-url` and `/storage/download-url`
+  are unauthenticated.** Built ahead of `AuthModule` specifically
+  because it doesn't need Prisma (fully verified in this sandbox:
+  `apps/api` lint, typecheck, build, and test all pass with it in
+  place — 10/10 unit tests green, including `StorageService` tests
+  using `aws-sdk-client-mock`, no real MinIO needed). REQ-2.5's RBAC
+  guard must be added to this controller once `AuthModule` lands; do
+  not treat this endpoint as production-safe until then. Tracked in
+  [[Security_Baseline]] and [[API_Shell]].
 
 ---
 
@@ -170,6 +178,7 @@ in [[PRD-Phase-2]] Section 8.
 Append one line per completed task, newest first. Format:
 `YYYY-MM-DD — REQ-x.x or free text — one-line note`.
 
+- 2026-07-13 — REQ-2.9/2.11 — Added `StorageModule` (signed MinIO upload/download URLs via `@aws-sdk/client-s3`/`s3-request-presigner`, bucket auto-created on startup) and Swagger/OpenAPI + global `ValidationPipe` (`@nestjs/swagger`, `class-validator`) — both chosen specifically because they're Prisma-independent and fully verifiable here, per user's call to work around the `prisma generate` blocker rather than write unverified Auth/Mission code. Added `MINIO_MISSIONS_BUCKET` env var to `.env.example`/Compose. Verified: lint, typecheck, build, `format:check`, and all 10 unit tests (incl. new `StorageService` tests via `aws-sdk-client-mock`) pass. Flagged the storage endpoints as temporarily unauthenticated in [[Security_Baseline]]/[[API_Shell]] until `AuthModule`'s RBAC guard lands.
 - 2026-07-13 — REQ-2.1/2.2 — Accepted [[ADR-004-nestjs-orm]]. Authored `apps/api/prisma/schema.prisma` (missions, users, teams, roles, user_roles, audit_log, outbox) and `apps/api/prisma.config.ts`; added `prisma`/`@prisma/client`/`@prisma/adapter-pg`/`pg` deps. Wrote [[Mission_State_Machine]] (REQ-2.2). Verified: existing lint/typecheck/build/test for `apps/api` still pass; `prisma.config.ts` type-checks under strict TS. Could not run `prisma generate`/`migrate diff` — blocked by sandbox network allowlist (binaries.prisma.sh), logged under Known gaps; REQ-2.3 left unchecked pending a real run.
 - 2026-07-13 — Phase 2 planning — Drafted [[PRD-Phase-2]] (REQ-2.1–2.14) and [[ADR-004-nestjs-orm]] (Prisma, proposed). Phase 2 checklist added below, all unchecked — implementation not yet started.
 - 2026-07-13 — REQ-1.1–1.24 — Verified against the actual repo state (all app shells, shared packages, Compose stack, CI workflow, pre-commit hooks, README, CONTRIBUTING already implemented in prior work but never reflected here). Ran `nx run-many` for lint/typecheck/test/build and `format:check` directly — all green. Checked all 24 boxes; Phase 1 marked substantively complete with two residual follow-ups logged under "Known gaps" (uv.lock not committed; docker compose up / vision-service pytest not runnable from this sandbox).

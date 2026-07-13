@@ -29,10 +29,15 @@ full OIDC, mTLS and threat modeling remain Phase 10.
 
 ## What's deliberately not here yet
 
-- No authentication or authorization anywhere in `apps/api` — every
-  endpoint is unauthenticated today (only `/`, `/health`, `/ready`
-  exist, none carry sensitive data).
-- No signed upload/download URLs — MinIO access patterns are Phase 2.
+- No authentication or authorization anywhere in `apps/api` yet.
+  **This is no longer a "nothing sensitive exists" situation**:
+  `StorageModule` (Phase 2, REQ-2.9) issues real presigned MinIO
+  upload/download URLs from unauthenticated endpoints
+  (`POST /storage/upload-url`, `GET /storage/download-url`). This is a
+  deliberate, temporary sequencing gap — `AuthModule`'s RBAC guard
+  (REQ-2.5) is blocked on the same Prisma-generation issue documented in
+  `docs/roadmap/Progress.md` Known gaps, not skipped by choice. It must
+  close before Phase 2 exits; see [[API_Shell]] for the tracking note.
 - No dependency/container vulnerability scanning in CI yet; no SBOM.
   Full supply-chain controls remain Phase 10.
 

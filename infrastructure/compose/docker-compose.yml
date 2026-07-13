@@ -112,6 +112,7 @@ services:
       MINIO_PORT: 9000
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_MISSIONS_BUCKET: ${MINIO_MISSIONS_BUCKET:-mission-videos}
     ports:
       - "${API_PORT:-3000}:3000"
     depends_on:

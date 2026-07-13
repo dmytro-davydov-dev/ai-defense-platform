@@ -1,9 +1,34 @@
 import { NestFactory } from "@nestjs/core";
+import { ValidationPipe } from "@nestjs/common";
+import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { log } from "@ai-defense/observability";
 import { AppModule } from "./app.module";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // REQ-2.7: every controller input is DTO-validated; class-validator
+  // decorators on the DTOs do the real work, this just wires it in
+  // globally so no future controller can forget the pipe.
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
+
+  // REQ-2.11: OpenAPI spec + Swagger UI at /docs.
+  const config = new DocumentBuilder()
+    .setTitle("AI Defense Platform API")
+    .setDescription(
+      "Control-plane API — mission lifecycle, identity, upload, audit.",
+    )
+    .setVersion("0.1.0")
+    .build();
+  const documentFactory = () => SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup("docs", app, documentFactory);
+
   const port = Number(process.env["PORT"] ?? 3000);
   await app.listen(port);
   log("info", `api listening on ${port}`);
