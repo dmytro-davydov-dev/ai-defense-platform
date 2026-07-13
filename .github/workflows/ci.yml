@@ -4,7 +4,7 @@ name: CI
 # docs/mvp-plan/PRD-Phase-1.md: lint -> type-check -> unit test -> build
 # -> docker build, per affected app/package. All jobs must pass before
 # merge (branch protection is configured separately in repo settings,
-# see CONTRIBUTING.md).
+# see docs/CONTRIBUTING.md).
 
 on:
   pull_request:

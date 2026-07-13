@@ -80,7 +80,7 @@ cleanly.
 
 - uv's CLI and lockfile format are still evolving faster than Poetry's.
   Mitigation: pin the uv version used in CI (via the CI image / a
-  documented `uv --version` in `CONTRIBUTING.md`) so upgrades are
+  documented `uv --version` in `docs/CONTRIBUTING.md`) so upgrades are
   deliberate, not silent.
 
 ## Migration and rollback

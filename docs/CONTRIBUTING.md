@@ -1,3 +1,10 @@
+---
+title: Contributing
+type: contributing
+tags: [contributing, process]
+status: accepted
+---
+
 # Contributing
 
 ## Branch strategy
@@ -71,3 +78,11 @@ are validated by commitlint on `commit-msg`.
       diagrams, and migration/rollback notes.
 - [ ] No secrets committed; `.env.example` updated if new config was
       added.
+
+---
+
+## Related Notes
+
+- [[Coding_Standards]] — PR size, ADR trigger, versioning rules referenced above.
+- [[PRD-Phase-1]] — REQ-1.21 (Conventional Commits), REQ-1.23 (pre-commit hooks), REQ-1.24 (branch/release strategy).
+- [[Repository_Structure]] — where ADRs and other governed docs live.

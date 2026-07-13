@@ -28,6 +28,11 @@ notes that build on it.
 - [[Repository_Structure]] — folder layout and ownership rules.
 - [[Coding_Standards]] — TypeScript/Python/event conventions, ADR trigger.
 
+## Contributing — how to work on this repo
+
+- [[CONTRIBUTING]] — branch/release strategy, Conventional Commits,
+  pre-commit hooks, PR checklist.
+
 ## Implementation notes — what Phase 1 actually built
 
 - [[Web_Shell]] — `apps/web` React+Vite scaffold.

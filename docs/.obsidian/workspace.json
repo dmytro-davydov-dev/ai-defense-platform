@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "backend/API_Shell.md",
+                "file": "roadmap/AI_Defense_Platform_Roadmap.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "API_Shell"
+              "title": "AI_Defense_Platform_Roadmap"
             }
           }
         ]
@@ -94,7 +94,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "backend/API_Shell.md",
+                "file": "roadmap/AI_Defense_Platform_Roadmap.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -104,7 +104,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks for API_Shell"
+              "title": "Backlinks for AI_Defense_Platform_Roadmap"
             }
           },
           {
@@ -113,12 +113,12 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "backend/API_Shell.md",
+                "file": "roadmap/AI_Defense_Platform_Roadmap.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "Outgoing links from API_Shell"
+              "title": "Outgoing links from AI_Defense_Platform_Roadmap"
             }
           },
           {
@@ -156,13 +156,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "backend/API_Shell.md",
+                "file": "roadmap/AI_Defense_Platform_Roadmap.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline of API_Shell"
+              "title": "Outline of AI_Defense_Platform_Roadmap"
             }
           }
         ]
@@ -185,6 +185,12 @@
   },
   "active": "c526e72e4765129c",
   "lastOpenFiles": [
+    "vision/Goals.md",
+    "backend/API_Shell.md",
+    "CONTRIBUTING.md",
+    "vision/Guiding_Principles.md",
+    "vision/Vision.md",
+    "vision",
     "security/Security_Baseline.md",
     "observability/Observability_Baseline.md",
     "testing/Phase1_Testing_Baseline.md",
@@ -192,7 +198,6 @@
     "frontend/Web_Shell.md",
     "devops/Local_Development_Stack.md",
     "python/Vision_Service_Shell.md",
-    "backend/API_Shell.md",
     "MOC.md",
     "mvp-plan/MVP_Implementation_Plan.md",
     "infra",

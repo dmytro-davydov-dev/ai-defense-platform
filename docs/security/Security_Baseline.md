@@ -23,7 +23,7 @@ full OIDC, mTLS and threat modeling remain Phase 10.
 - `.env.example` is committed and documents every variable the stack
   needs; `.env` itself is gitignored.
 - `.gitignore` excludes `.env*`, build output, and local data volumes.
-- Conventional Commits + small, reviewable PRs (`CONTRIBUTING.md`) keep
+- Conventional Commits + small, reviewable PRs (`docs/CONTRIBUTING.md`) keep
   the audit trail on `main` legible — a prerequisite for the append-only
   audit logging Phase 2 adds at the application layer.
 

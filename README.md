@@ -66,6 +66,7 @@ Background reading:
 8. `docs/architecture/Coding_Standards.md`
 9. `docs/roadmap/AI_Defense_Platform_Roadmap.md`
 10. `docs/mvp-plan/PRD-Phase-1.md` and `docs/mvp-plan/MVP_Implementation_Plan.md`
+11. `docs/CONTRIBUTING.md` — branch/release strategy, Conventional Commits, PR checklist
 
 ## Prerequisites
 
@@ -145,4 +146,5 @@ uv run pytest
 Every PR runs `.github/workflows/ci.yml`: Conventional Commit
 validation, `nx affected` lint/typecheck/test/build for TS
 apps/packages, Ruff/pytest for `apps/vision-service`, and a Docker build
-per app shell. See `CONTRIBUTING.md` for the branch/release strategy.
+per app shell. See [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) for
+the branch/release strategy.

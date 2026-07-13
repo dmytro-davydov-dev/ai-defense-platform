@@ -7,10 +7,8 @@ pnpm-lock.yaml
 apps/vision-service/.venv
 apps/vision-service/uv.lock
 
-# docs/ is Dmytro's Obsidian knowledge-base vault (docs/MOC.md) — content
-# and formatting are authored/owned there, not by this repo's TS/Prettier
-# tooling. Root-level vision/goals/principles notes are the same vault.
+# docs/ is Dmytro's Obsidian knowledge-base vault (docs/MOC.md),
+# including Vision/Goals/Guiding_Principles/CONTRIBUTING — content and
+# formatting are authored/owned there, not by this repo's TS/Prettier
+# tooling.
 docs/
-Vision.md
-Guiding_Principles.md
-Goals.md
