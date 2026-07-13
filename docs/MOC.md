@@ -54,6 +54,7 @@ nothing grounded to document there until Phases 4/5/9.
 - [[ADR-001-monorepo-tooling]] — pnpm workspaces + Nx.
 - [[ADR-002-python-dependency-manager]] — uv.
 - [[ADR-003-kafka-distribution-local-compose]] — Redpanda for local Compose.
+- [[ADR-004-nestjs-orm]] — Prisma for `apps/api`'s ORM (Phase 2, proposed).
 - [[Initial_Risk_Register]] — top platform-level risks and mitigations.
 
 ## Roadmap and planning — what happens when
@@ -64,6 +65,7 @@ nothing grounded to document there until Phases 4/5/9.
   is the sprint that produced everything in Foundation/Architecture/Governance above).
 - [[MVP_Implementation_Plan]] — scopes and sequences Phases 1–7 into the MVP.
 - [[PRD-Phase-1]] — Phase 1 expanded into full requirements (REQ-1.1–1.24).
+- [[PRD-Phase-2]] — Phase 2 expanded into full requirements (REQ-2.1–2.14).
 
 ---
 

@@ -185,6 +185,8 @@
   },
   "active": "c526e72e4765129c",
   "lastOpenFiles": [
+    "mvp-plan/PRD-Phase-2.md",
+    "adr/ADR-004-nestjs-orm.md",
     "roadmap/Progress.md",
     "vision/Goals.md",
     "backend/API_Shell.md",
