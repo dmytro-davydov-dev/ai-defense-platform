@@ -32,7 +32,10 @@ CRUD, identity/RBAC, upload URLs and audit logging incrementally.
   can't run `prisma generate`/`migrate` itself (network allowlist blocks
   `binaries.prisma.sh` — see Known gaps below); both artifacts were
   produced on a machine with normal network access, per the previous
-  session's documented next step.
+  session's documented next step. The `generator client` block now sets
+  `moduleFormat = "cjs"` explicitly (fix for the ESM/CJS incompatibility
+  in Known gaps below) — **the committed `apps/api/generated/` client
+  predates this change** and needs regenerating before it reflects it.
 - `PrismaModule`/`PrismaService` (`src/prisma/`): global Nest module
   wrapping the generated client via the `@prisma/adapter-pg` driver
   adapter (`PrismaPg`), connecting/disconnecting on
@@ -98,13 +101,11 @@ CRUD, identity/RBAC, upload URLs and audit logging incrementally.
 
 ## What's deliberately not here yet
 
-- REQ-2.12: the OpenAPI spec isn't yet exported into
-  `packages/contracts` — Swagger UI at `/docs` is the only current
-  consumer.
-- REQ-2.14: integration tests against real Postgres/MinIO (Compose) —
-  see Known gaps.
-- No Kafka producer — the outbox pattern and `apps/outbox-publisher`
-  activate in Phase 3.
+- REQ-2.14: integration tests are written (`apps/api/test/mission-
+  lifecycle.e2e-spec.ts`) but not yet run against real Postgres/MinIO
+  (Compose) — see Known gaps. (REQ-2.12's export tooling is done — see
+  Known gaps below — `packages/contracts/openapi.json` is real and
+  committed.)
 - RBAC is two flat roles (`operator`, `admin`) with no per-role
   distinction in what they can do yet — an explicit Phase 2 MVP
   simplification per [[PRD-Phase-2]]'s open questions.
@@ -137,7 +138,112 @@ CRUD, identity/RBAC, upload URLs and audit logging incrementally.
   tests only, since every one of them mocks the repository/Prisma layer
   anyway. `test/jest-e2e.json` deliberately does **not** get the same
   stub: REQ-2.14 needs the real client's behavior once someone fixes the
-  underlying ESM/ts-jest issue.
+  underlying ESM/ts-jest issue. **Update:** the `import.meta.url`
+  `SyntaxError` did disappear once `moduleFormat = "cjs"` (see below)
+  was regenerated, but a *second*, unrelated `ts-jest` issue surfaced
+  next: `Cannot find module './internal/class.js' from
+  '../generated/prisma/client.ts'` — Prisma's generator writes its own
+  internal imports in NodeNext style (explicit `.js` pointing at a
+  sibling `.ts` file, valid for a real `tsc` build), which `ts-jest`'s
+  on-the-fly transform can't resolve without help. Fixed with the
+  standard workaround — added `"moduleNameMapper": {
+  "^(\\.{1,2}/.*)\\.js$": "$1" }` to `test/jest-e2e.json` — not yet
+  re-run to confirm.
+- **This is worse than previously documented: it also breaks plain
+  `node`, not just Jest.** Discovered in a prior session while building
+  REQ-2.12's export script — `apps/api/generated/prisma/client.ts` ships
+  raw TypeScript (Prisma 7's generator), and an `import.meta.url` line
+  inside it survived `tsc`'s `nodenext` compile into
+  `dist/generated/prisma/client.js` regardless of how it's invoked.
+  Requiring that compiled file directly under Node v22.22.3 (this
+  sandbox's current version — floating past the `.nvmrc`-pinned
+  `22.13.0`) threw `ReferenceError: exports is not defined in ES module
+  scope`: Node's module-syntax detection saw `import.meta` and loaded
+  the file as ESM, but the rest of the file was CJS-shaped
+  (`Object.defineProperty(exports, ...)`), so neither interpretation
+  actually ran. Reproduced directly (`node -e
+  "require('./dist/generated/prisma/client.js')"`) independent of any
+  app logic.
+- **RESOLVED and verified end-to-end.** All three entries above are one bug: Prisma's
+  `prisma-client` generator defaults to **ESM** output and infers
+  `moduleFormat` from `tsconfig.json` when it isn't set explicitly —
+  that inference guessed wrong here (`"module": "nodenext"` with no
+  `"type"` field in `apps/api/package.json` is genuinely ambiguous).
+  Confirmed against Prisma's own changelog ("Prisma v7 ships as an ES
+  module by default, which doesn't work with NestJS's CommonJS setup —
+  setting `moduleFormat` to `cjs` forces Prisma to generate a CommonJS
+  module instead") and a filed Prisma issue
+  ([prisma/prisma#27556](https://github.com/prisma/prisma/issues/27556))
+  with the identical `ReferenceError` symptom. Fix: added `moduleFormat
+  = "cjs"` to the `generator client` block in
+  `apps/api/prisma/schema.prisma`, matching how `apps/api` actually
+  compiles (CommonJS-shaped, per `node-app.json`'s base config and the
+  absent `"type"` field). Verified on a machine with normal network
+  access: `pnpm --filter @ai-defense/api exec prisma generate`
+  regenerated cleanly (`✓ Generated Prisma Client (7.8.0)`), and once
+  the unrelated `dist/src/main.js` path bug below was also fixed, `node
+  dist/src/main.js` booted clean — every controller's routes mapped and
+  `[PrismaService] Connected to Postgres via @prisma/adapter-pg`, zero
+  ESM/CJS errors anywhere in the boot path.
+  **Confirmed impact:** retires the elevated-severity risk that
+  `apps/api/Dockerfile`'s floating `FROM node:22-slim` tag exposed the
+  production image to this same failure, and unblocks REQ-2.12's export
+  script and REQ-2.14's integration tests (both were blocked by this
+  same bug, not by anything specific to either REQ). **Both fully
+  confirmed** (with a few more unrelated fixes layered on along the
+  way — stale `event-schemas` build, an `AppModule` import-hoisting
+  bug, `--experimental-vm-modules` for Prisma's WASM loader, a NodeNext
+  `.js`-extension requirement — see the entries below and in
+  [[Progress]]): `openapi:export` produced a real, verified
+  `packages/contracts/openapi.json`, and `test:e2e` passes 3/3 against
+  full Compose infra. **Update:** REQ-2.14's three integration tests are
+  now written — `apps/api/test/mission-lifecycle.e2e-spec.ts` covers
+  mission CRUD round-trip, signed URL generation (with object-key
+  attach verified via a follow-up GET), and illegal-transition
+  rejection (DRAFT→COMPLETED, asserts 409 + `MISSION_ILLEGAL_TRANSITION`).
+  Driven over real HTTP via `supertest` against the full `AppModule`
+  (register → JWT → authenticated requests) rather than the feature-
+  module-only style REQ-3.15 used, since REQ-2.14 is explicitly about
+  the HTTP-facing contract; confirmed `KafkaModule` doesn't need
+  excluding since its consumer no-ops without `KAFKA_BROKERS` instead
+  of failing boot. Lint and `tsc --noEmit` both clean. Not yet run — no
+  docker daemon in this sandbox; needs `docker compose up -d postgres
+  minio` + `DATABASE_URL`/`JWT_SECRET`/`MINIO_ROOT_USER`/
+  `MINIO_ROOT_PASSWORD` on a normal dev machine, then `pnpm --filter
+  @ai-defense/api run test:e2e`.
+- **Found and fixed: `node dist/main.js` was never the right path,
+  independent of the Prisma bug above.** Surfaced when actually running
+  the verification steps above on a real machine for the first time —
+  `Error: Cannot find module '.../apps/api/dist/main.js'`. Cause:
+  `apps/api/tsconfig.json` sets `rootDir` to `"./"` (apps/api itself,
+  not `"src"`) so one `tsc` invocation also compiles the sibling
+  `prisma.config.ts` and `generated/prisma/` alongside `src/`; every
+  `src/` file's output therefore nests one level deeper than the
+  NestJS-CLI-default assumption — `dist/src/main.js`, not
+  `dist/main.js`. Both `apps/api/package.json`'s `start:prod` script and
+  `apps/api/Dockerfile`'s `CMD` had the wrong path, meaning `pnpm run
+  start:prod` and the built Docker image's `api` container have never
+  actually been runnable, in any session, until now. Fixed both this
+  session (`start:prod` → `node dist/src/main`, Dockerfile `CMD` →
+  `["node", "dist/src/main.js"]`). **Verified fixed**: `node
+  dist/src/main.js` booted clean with the corrected path (same run that
+  confirmed the Prisma fix above). Still worth a `docker compose up
+  --build api` run to confirm the Dockerfile `CMD` specifically resolves
+  the same way, not just the local `node` invocation.
+- **`nest build` (and so `openapi:export`) briefly failed for a third,
+  unrelated reason**: `src/` already has real Phase 3 REQ-3.14 code
+  (`src/kafka/`, `src/processed-events/`) wired into `AppModule` —
+  in-progress work from outside this session, not yet reflected in
+  [[Progress]]'s Phase 3 checklist. `package.json` already correctly
+  declared `@ai-defense/event-schemas`/`kafkajs` as dependencies, but
+  `pnpm install` hadn't been re-run since they were added, so the
+  `node_modules` links didn't exist. Also fixed a real
+  `noImplicitAny` violation this build surfaced: typed
+  `processing-events-consumer.service.ts`'s `eachMessage` callback
+  against kafkajs's `EachMessagePayload`. Noted, not fixed: this
+  code's `processed-events.repository.ts` references a
+  `20260714120000_kafka_event_platform` migration that doesn't exist
+  under `apps/api/prisma/migrations/` yet.
 
 ------------------------------------------------------------------------
 
