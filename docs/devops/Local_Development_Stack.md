@@ -37,7 +37,8 @@ later without silently losing GIS support.
 
 `.github/workflows/ci.yml` (REQ-1.19-1.21) runs on every PR:
 
-- **commitlint** — validates every commit in the PR against Conventional
+- ~~**commitlint**~~ — removed (2026-07-14), see [[Progress]] Known
+  gaps. Used to validate every commit in the PR against Conventional
   Commits.
 - **ts-quality** — `nx affected` for `lint`, `typecheck`, `test`,
   `build`, plus `pnpm format:check`, scoped to only the TS
@@ -58,7 +59,9 @@ Husky (`.husky/pre-commit`, `.husky/commit-msg`, REQ-1.23) runs
 `lint-staged` (Prettier on staged `apps/**`/`packages/**` TS/JSON files
 and `infrastructure/**`/`.github/**` YAML — deliberately scoped away
 from `docs/`) plus Ruff on any staged `apps/vision-service/**/*.py`
-files, and validates the commit message against `commitlint.config.cjs`.
+files. `.husky/commit-msg` no longer validates against
+`commitlint.config.cjs` — disabled 2026-07-14, see [[Progress]] Known
+gaps.
 
 ------------------------------------------------------------------------
 

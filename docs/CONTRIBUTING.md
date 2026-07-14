@@ -36,9 +36,11 @@ status: accepted
 
 ## Conventional Commits
 
-Enforced by commitlint (`commitlint.config.cjs`) via a `commit-msg` git
-hook (Husky) locally, and again in CI on every PR
-(`.github/workflows/ci.yml`, `commitlint` job). Format:
+**No longer enforced (2026-07-14)** — the `commit-msg` Husky hook and
+CI's `commitlint` job were both disabled per explicit request; see
+`docs/roadmap/Progress.md` Known gaps for the reversal note.
+`commitlint.config.cjs` is still present but unused. The format below
+remains the house style/recommendation, just not machine-checked:
 
 ```text
 <type>(<optional scope>): <description>
@@ -63,8 +65,9 @@ pnpm install   # installs Husky hooks via the root "prepare" script
 ```
 
 Pre-commit runs Prettier/ESLint on staged TS files (`lint-staged`) and
-Ruff on staged Python files under `apps/vision-service`. Commit messages
-are validated by commitlint on `commit-msg`.
+Ruff on staged Python files under `apps/vision-service`. Commit message
+validation (commitlint on `commit-msg`) is disabled — see Conventional
+Commits above.
 
 ## Pull request checklist
 

@@ -1,1 +1,4 @@
-npx --no -- commitlint --edit "$1"
+# Conventional Commits enforcement (commitlint) disabled per explicit
+# request (2026-07-14) - was REQ-1.21/Coding_Standards.md. See
+# docs/roadmap/Progress.md Known gaps for the reversal note.
+exit 0

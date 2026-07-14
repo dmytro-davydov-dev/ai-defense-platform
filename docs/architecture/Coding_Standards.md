@@ -12,7 +12,8 @@ status: accepted
 - English for code, APIs, schemas and commit messages.
 - Ukrainian or English may be used in explanatory documentation.
 - Small, reviewable pull requests.
-- Conventional Commits.
+- Conventional Commits (recommended style; no longer machine-enforced —
+  commitlint was disabled 2026-07-14, see [[Progress]] Known gaps).
 - No secrets or sensitive data in the repository.
 - Every externally visible contract is versioned.
 
