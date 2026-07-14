@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ai-defense-platform/schemas/processing-failed.schema.json",
+  "title": "ProcessingFailedPayload",
+  "description": "Payload for PROCESSING_FAILED (eventVersion 1), published to aidefense.processing-events when the stub consumer reports an unrecoverable error (PRD-Phase-3 REQ-3.13/Mission_State_Machine.md's PROCESSING -> FAILED transition).",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["missionId", "reason"],
+  "properties": {
+    "missionId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "reason": {
+      "type": "string",
+      "description": "Stable, human-readable failure reason (not a stack trace)."
+    }
+  }
+}

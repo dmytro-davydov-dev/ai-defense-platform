@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ai-defense-platform/schemas/processing-completed.schema.json",
+  "title": "ProcessingCompletedPayload",
+  "description": "Payload for PROCESSING_COMPLETED (eventVersion 1). Stub-only in Phase 3 (PRD-Phase-3 non-goals) — no real detection/frame results yet, those land in Phase 4/5.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["missionId", "note"],
+  "properties": {
+    "missionId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "note": {
+      "type": "string",
+      "description": "Human-readable stub marker, e.g. \"stub: no frame processing in Phase 3\"."
+    }
+  }
+}

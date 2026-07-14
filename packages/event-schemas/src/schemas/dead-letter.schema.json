@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ai-defense-platform/schemas/dead-letter.schema.json",
+  "title": "DeadLetterPayload",
+  "description": "Payload published to aidefense.dead-letter (REQ-3.9/3.10) when a consumer exhausts its retry budget on a message. Wraps the original envelope rather than replacing it, so nothing about the original event is lost.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["originalEvent", "failureReason", "attempts", "topic"],
+  "properties": {
+    "originalEvent": {
+      "type": "object",
+      "description": "The full original EventEnvelope that failed, unmodified."
+    },
+    "failureReason": {
+      "type": "string",
+      "description": "Stable, human-readable reason the retry budget was exhausted."
+    },
+    "attempts": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Number of delivery attempts made before dead-lettering."
+    },
+    "topic": {
+      "type": "string",
+      "description": "The topic the original event was consumed from."
+    }
+  }
+}

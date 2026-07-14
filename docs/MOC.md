@@ -56,6 +56,7 @@ nothing grounded to document there until Phases 4/5/9.
 - [[ADR-002-python-dependency-manager]] — uv.
 - [[ADR-003-kafka-distribution-local-compose]] — Redpanda for local Compose.
 - [[ADR-004-nestjs-orm]] — Prisma for `apps/api`'s ORM (Phase 2, proposed).
+- [[ADR-005-event-schema-versioning]] — additive-only, per-eventType versioning for Kafka events (Phase 3, accepted).
 - [[Initial_Risk_Register]] — top platform-level risks and mitigations.
 
 ## Roadmap and planning — what happens when
@@ -67,6 +68,8 @@ nothing grounded to document there until Phases 4/5/9.
 - [[MVP_Implementation_Plan]] — scopes and sequences Phases 1–7 into the MVP.
 - [[PRD-Phase-1]] — Phase 1 expanded into full requirements (REQ-1.1–1.24).
 - [[PRD-Phase-2]] — Phase 2 expanded into full requirements (REQ-2.1–2.14).
+- [[PRD-Phase-3]] — Phase 3 expanded into full requirements (REQ-3.1–3.15).
+- [[PRD-Phase-4]] — Phase 4 expanded into full requirements (REQ-4.1–4.12).
 
 ---
 
@@ -75,8 +78,8 @@ nothing grounded to document there until Phases 4/5/9.
 - **Tags** group notes by domain: `#vision`, `#goals`, `#principles`,
   `#architecture`, `#quality-attributes`, `#technology`, `#repository`,
   `#standards`, `#risk`, `#adr`, `#roadmap`, `#sprint0`, `#mvp`, `#plan`,
-  `#prd`, `#phase1`, `#moc`. Use Obsidian's tag pane to filter by any of
-  these.
+  `#prd`, `#phase1`, `#phase4`, `#moc`. Use Obsidian's tag pane to
+  filter by any of these.
 - **Related Notes** sections at the bottom of each note are the
   hand-curated edges of the graph; Obsidian's backlinks panel shows the
   reverse direction automatically.

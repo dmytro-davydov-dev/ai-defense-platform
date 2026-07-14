@@ -2,9 +2,8 @@
   "name": "@ai-defense/event-schemas",
   "version": "0.1.0",
   "private": true,
-  "description": "Kafka event envelope and schema definitions shared between apps/api, apps/outbox-publisher and apps/vision-service. Populated in Phase 3.",
+  "description": "Kafka topic taxonomy, event envelope and per-eventType payload schemas/types shared between apps/api, apps/outbox-publisher and apps/vision-service (PRD-Phase-3).",
   "license": "UNLICENSED",
-  "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -17,7 +16,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
-    "test": "echo \"@ai-defense/event-schemas: no tests yet\" && exit 0"
+    "test": "tsc -p tsconfig.json && node --test dist/*.test.js"
   },
   "devDependencies": {
     "@ai-defense/eslint-config": "workspace:*",

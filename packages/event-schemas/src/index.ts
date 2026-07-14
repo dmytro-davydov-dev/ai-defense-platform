@@ -1,25 +1,18 @@
 /**
  * @ai-defense/event-schemas
  *
- * Scaffold only — Phase 1 (docs/mvp-plan/PRD-Phase-1.md, REQ-1.10).
- * Populated in Phase 3 with the JSON Schema event envelope and per-topic
- * payload schemas (aidefense.commands, aidefense.processing-events,
- * aidefense.detections, aidefense.telemetry, aidefense.audit,
- * aidefense.device-events, aidefense.dead-letter), plus generated TS
- * types and a matching Python/Pydantic model, per
- * docs/architecture/Coding_Standards.md's event envelope shape:
- *
- * { eventId, eventType, eventVersion, occurredAt, correlationId,
- *   causationId, producer, payload }
+ * Phase 3 (docs/mvp-plan/PRD-Phase-3.md, REQ-3.1-3.4): the Kafka topic
+ * taxonomy, the event envelope, and per-eventType payload types shared
+ * between apps/api, apps/outbox-publisher and apps/vision-service.
+ * JSON Schema source of truth lives in src/schemas/*.schema.json;
+ * apps/vision-service/tests/test_event_schema_sync.py enforces that
+ * this package's TS types stay in sync with both the schema files and
+ * apps/vision-service's Pydantic models (REQ-3.4). Versioning policy:
+ * docs/adr/ADR-005-event-schema-versioning.md.
  */
 
-/**
- * Placeholder marker type. Replace with the real event envelope + topic
- * payload types in Phase 3.
- */
-export interface EventSchemasPackagePlaceholder {
-  readonly phase: 1;
-  readonly note: "populated in Phase 3 — see docs/mvp-plan/PRD-Phase-1.md REQ-1.10";
-}
+export * from "./topics";
+export * from "./envelope";
+export * from "./payloads";
 
-export const EVENT_SCHEMAS_PACKAGE_VERSION = "0.1.0" as const;
+export const EVENT_SCHEMAS_PACKAGE_VERSION = "0.2.0" as const;

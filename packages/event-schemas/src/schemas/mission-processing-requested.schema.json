@@ -1,0 +1,20 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ai-defense-platform/schemas/mission-processing-requested.schema.json",
+  "title": "MissionProcessingRequestedPayload",
+  "description": "Payload for MISSION_PROCESSING_REQUESTED (eventVersion 1), published to aidefense.commands when a mission transitions DRAFT -> QUEUED (PRD-Phase-3 REQ-3.6).",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["missionId", "videoObjectKey"],
+  "properties": {
+    "missionId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Also the Kafka partition key (REQ-3.2)."
+    },
+    "videoObjectKey": {
+      "type": "string",
+      "description": "MinIO object key of the mission's attached video (REQ-2.9)."
+    }
+  }
+}

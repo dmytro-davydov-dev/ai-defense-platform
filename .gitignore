@@ -49,3 +49,9 @@ infrastructure/compose/.data/
 
 # Coverage
 coverage/
+
+# Stray pnpm temp files this sandbox's filesystem can't delete once
+# pnpm creates them (an interrupted `pnpm install`'s store-path check
+# leaves these at the repo root) — harmless, but keep them out of git
+# status/diffs rather than committing them.
+/_tmp_*

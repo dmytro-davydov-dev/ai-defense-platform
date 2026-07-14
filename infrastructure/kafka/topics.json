@@ -1,0 +1,54 @@
+{
+  "$comment": "Documentation copy of the declarative topic list create-topics.sh actually creates against local Redpanda (PRD-Phase-3 REQ-3.1/3.2). Keep both files in sync by hand if the taxonomy changes — create-topics.sh is what docker compose up actually runs.",
+  "topics": [
+    {
+      "name": "aidefense.commands",
+      "partitions": 6,
+      "replicationFactor": 1,
+      "missionScoped": true,
+      "description": "Commands into the platform, e.g. MISSION_PROCESSING_REQUESTED, published by apps/outbox-publisher and consumed by apps/vision-service."
+    },
+    {
+      "name": "aidefense.processing-events",
+      "partitions": 6,
+      "replicationFactor": 1,
+      "missionScoped": true,
+      "description": "Progress/lifecycle events from apps/vision-service (PROCESSING_STARTED/COMPLETED/FAILED), consumed by apps/api to drive MissionsService.transition()."
+    },
+    {
+      "name": "aidefense.detections",
+      "partitions": 6,
+      "replicationFactor": 1,
+      "missionScoped": true,
+      "description": "Detection results. Topic only in Phase 3 — no producer/consumer until Phase 5."
+    },
+    {
+      "name": "aidefense.telemetry",
+      "partitions": 1,
+      "replicationFactor": 1,
+      "missionScoped": false,
+      "description": "Device/edge telemetry. Topic only in Phase 3 — no producer/consumer until Phase 7/9."
+    },
+    {
+      "name": "aidefense.audit",
+      "partitions": 1,
+      "replicationFactor": 1,
+      "missionScoped": false,
+      "description": "Event-carried audit trail (distinct from apps/api's synchronous audit_log table). Topic only in Phase 3."
+    },
+    {
+      "name": "aidefense.device-events",
+      "partitions": 1,
+      "replicationFactor": 1,
+      "missionScoped": false,
+      "description": "Edge device lifecycle events. Topic only in Phase 3 — no producer/consumer until Phase 9/10."
+    },
+    {
+      "name": "aidefense.dead-letter",
+      "partitions": 3,
+      "replicationFactor": 1,
+      "missionScoped": false,
+      "description": "Messages that exhausted their consumer retry budget (REQ-3.9/3.10) — wraps the original envelope, see packages/event-schemas/src/schemas/dead-letter.schema.json."
+    }
+  ]
+}

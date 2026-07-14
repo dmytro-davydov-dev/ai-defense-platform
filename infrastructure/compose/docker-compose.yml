@@ -1,9 +1,11 @@
 # Local development stack — Phase 1 (docs/mvp-plan/PRD-Phase-1.md,
-# REQ-1.16/1.17). `docker compose up` from this directory (or
+# REQ-1.16/1.17), extended in Phase 3 (docs/mvp-plan/PRD-Phase-3.md)
+# with the kafka-init topic-creation step and the outbox-publisher
+# service. `docker compose up` from this directory (or
 # `docker compose -f infrastructure/compose/docker-compose.yml up` from
 # repo root) boots Postgres+PostGIS, Redpanda (Kafka API, see
-# docs/adr/ADR-003-kafka-distribution-local-compose.md), MinIO, and the
-# three app shells with no manual steps.
+# docs/adr/ADR-003-kafka-distribution-local-compose.md), MinIO, and all
+# four app shells with no manual steps.
 #
 # All configuration is sourced from .env (see .env.example at the repo
 # root) — no secrets are hardcoded here, per REQ-1.18.
@@ -56,6 +58,23 @@ services:
       interval: 5s
       timeout: 5s
       retries: 15
+    networks: [ai-defense]
+
+  # PRD-Phase-3 REQ-3.1/3.2: one-shot topic creation, scripted/declarative
+  # (infrastructure/kafka/create-topics.sh) so the full topology exists
+  # before api/vision-service/outbox-publisher start — no manual `rpk
+  # topic create` step, consistent with REQ-1.17.
+  kafka-init:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.3.1
+    restart: "no"
+    entrypoint: ["/bin/sh", "/kafka/create-topics.sh"]
+    environment:
+      REDPANDA_BROKERS: redpanda:9092
+    volumes:
+      - ../kafka/create-topics.sh:/kafka/create-topics.sh:ro
+    depends_on:
+      redpanda:
+        condition: service_healthy
     networks: [ai-defense]
 
   minio:
@@ -122,6 +141,8 @@ services:
         condition: service_healthy
       redpanda:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
       minio:
         condition: service_healthy
     healthcheck:
@@ -137,6 +158,28 @@ services:
       retries: 10
     networks: [ai-defense]
 
+  # PRD-Phase-3 REQ-3.7: Transactional Outbox publisher. No HTTP
+  # server/port/healthcheck — it's a poll loop, not a request-serving
+  # app (see apps/outbox-publisher/Dockerfile's comment).
+  outbox-publisher:
+    build:
+      context: ../..
+      dockerfile: apps/outbox-publisher/Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-aidefense}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aidefense}
+      KAFKA_BROKERS: redpanda:9092
+      OUTBOX_POLL_INTERVAL_MS: ${OUTBOX_POLL_INTERVAL_MS:-1000}
+      OUTBOX_BATCH_SIZE: ${OUTBOX_BATCH_SIZE:-20}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    networks: [ai-defense]
+
   vision-service:
     build:
       context: ../../apps/vision-service
@@ -145,6 +188,10 @@ services:
     environment:
       VISION_SERVICE_PORT: 8000
       KAFKA_BROKERS: redpanda:9092
+      # REQ-3.8: scoped Postgres access for the processed_events
+      # idempotency table only — see docs/python/Vision_Service_Shell.md.
+      # No other table is ever queried from this service.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-aidefense}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aidefense}
       MINIO_ENDPOINT: minio
       MINIO_PORT: 9000
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
@@ -152,8 +199,12 @@ services:
     ports:
       - "${VISION_SERVICE_PORT:-8000}:8000"
     depends_on:
+      postgres:
+        condition: service_healthy
       redpanda:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
       minio:
         condition: service_healthy
     healthcheck:
