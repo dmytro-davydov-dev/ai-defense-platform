@@ -14,10 +14,15 @@ def test_health_returns_ok() -> None:
     assert response.json() == {"status": "ok"}
 
 
-def test_ready_returns_ready() -> None:
+def test_ready_returns_ready_when_kafka_and_minio_are_unconfigured() -> None:
+    """REQ-4.7: with no KAFKA_BROKERS/DATABASE_URL/MINIO_ROOT_USER set
+    (this test environment's default), both checks are skipped rather
+    than failed — same "nothing to check" treatment the Phase 1 shell
+    always gave /ready before either dependency existed.
+    """
     response = client.get("/ready")
     assert response.status_code == 200
-    assert response.json() == {"status": "ready"}
+    assert response.json() == {"status": "ready", "kafka": "ready", "minio": "ready"}
 
 
 def test_version_returns_service_metadata() -> None:

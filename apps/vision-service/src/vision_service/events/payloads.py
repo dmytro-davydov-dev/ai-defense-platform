@@ -39,9 +39,24 @@ class ProcessingStartedPayload(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     missionId: str
+    # REQ-4.6, optional: absent for events still on the Phase 3 stub shape.
+    durationSeconds: float | None = None
+    fps: float | None = None
+    width: int | None = None
+    height: int | None = None
+    frameCount: int | None = None
+    checksumSha256: str | None = None
 
 
-PROCESSING_STARTED_FIELD_NAMES = ("missionId",)
+PROCESSING_STARTED_FIELD_NAMES = (
+    "missionId",
+    "durationSeconds",
+    "fps",
+    "width",
+    "height",
+    "frameCount",
+    "checksumSha256",
+)
 
 
 class ProcessingCompletedPayload(BaseModel):
@@ -49,9 +64,13 @@ class ProcessingCompletedPayload(BaseModel):
 
     missionId: str
     note: str
+    # REQ-4.10, optional: real frame count/duration once the Phase 4
+    # pipeline is wired in.
+    frameCount: int | None = None
+    processingDurationMs: float | None = None
 
 
-PROCESSING_COMPLETED_FIELD_NAMES = ("missionId", "note")
+PROCESSING_COMPLETED_FIELD_NAMES = ("missionId", "note", "frameCount", "processingDurationMs")
 
 
 class ProcessingFailedPayload(BaseModel):

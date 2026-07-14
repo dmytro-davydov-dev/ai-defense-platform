@@ -29,14 +29,37 @@ export const MISSION_PROCESSING_REQUESTED_FIELD_NAMES = ["missionId", "videoObje
 
 export interface ProcessingStartedPayload {
   readonly missionId: string;
+  /** REQ-4.6, optional: absent for events still on the Phase 3 stub shape. */
+  readonly durationSeconds?: number;
+  readonly fps?: number;
+  readonly width?: number;
+  readonly height?: number;
+  readonly frameCount?: number;
+  readonly checksumSha256?: string;
 }
-export const PROCESSING_STARTED_FIELD_NAMES = ["missionId"] as const;
+export const PROCESSING_STARTED_FIELD_NAMES = [
+  "missionId",
+  "durationSeconds",
+  "fps",
+  "width",
+  "height",
+  "frameCount",
+  "checksumSha256",
+] as const;
 
 export interface ProcessingCompletedPayload {
   readonly missionId: string;
   readonly note: string;
+  /** REQ-4.10, optional: real frame count/duration once the Phase 4 pipeline is wired in. */
+  readonly frameCount?: number;
+  readonly processingDurationMs?: number;
 }
-export const PROCESSING_COMPLETED_FIELD_NAMES = ["missionId", "note"] as const;
+export const PROCESSING_COMPLETED_FIELD_NAMES = [
+  "missionId",
+  "note",
+  "frameCount",
+  "processingDurationMs",
+] as const;
 
 export interface ProcessingFailedPayload {
   readonly missionId: string;

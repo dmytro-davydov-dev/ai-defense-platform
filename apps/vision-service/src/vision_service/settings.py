@@ -25,5 +25,22 @@ class Settings(BaseSettings):
     kafka_brokers: str = Field(default="", validation_alias="KAFKA_BROKERS")
     database_url: str = Field(default="", validation_alias="DATABASE_URL")
 
+    # Phase 4 (REQ-4.10): same MINIO_* names apps/api's StorageService
+    # reads (infrastructure/compose/docker-compose.yml sets these
+    # identically for both services) — this service downloads mission
+    # videos directly from MinIO rather than proxying through apps/api.
+    # minio_root_user/minio_root_password default to "" (not a hard
+    # failure at settings-construction time), mirroring
+    # kafka_brokers/database_url above: MinioClient can always be
+    # constructed, and /ready's reachability check treats a blank
+    # credential pair as "not configured" rather than "unreachable".
+    minio_endpoint: str = Field(default="localhost", validation_alias="MINIO_ENDPOINT")
+    minio_port: str = Field(default="9000", validation_alias="MINIO_PORT")
+    minio_root_user: str = Field(default="", validation_alias="MINIO_ROOT_USER")
+    minio_root_password: str = Field(default="", validation_alias="MINIO_ROOT_PASSWORD")
+    minio_missions_bucket: str = Field(
+        default="mission-videos", validation_alias="MINIO_MISSIONS_BUCKET"
+    )
+
 
 settings = Settings()

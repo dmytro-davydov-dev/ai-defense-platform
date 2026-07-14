@@ -196,6 +196,8 @@ services:
       MINIO_PORT: 9000
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      # REQ-4.10: same bucket apps/api uploads mission videos to.
+      MINIO_MISSIONS_BUCKET: ${MINIO_MISSIONS_BUCKET:-mission-videos}
     ports:
       - "${VISION_SERVICE_PORT:-8000}:8000"
     depends_on:

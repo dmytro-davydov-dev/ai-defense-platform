@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://ai-defense-platform/schemas/processing-started.schema.json",
   "title": "ProcessingStartedPayload",
-  "description": "Payload for PROCESSING_STARTED (eventVersion 1), published to aidefense.processing-events by apps/vision-service's stub consumer (PRD-Phase-3 REQ-3.13) on receipt of MISSION_PROCESSING_REQUESTED.",
+  "description": "Payload for PROCESSING_STARTED (eventVersion 1), published to aidefense.processing-events by apps/vision-service's commands consumer on receipt of MISSION_PROCESSING_REQUESTED. Phase 3 (PRD-Phase-3 REQ-3.13) published only missionId as a stub; Phase 4 (PRD-Phase-4 REQ-4.10) adds the optional video-metadata fields below, populated once REQ-4.6's extraction runs and before frame iteration begins. Additive per ADR-005 — no eventVersion bump.",
   "type": "object",
   "additionalProperties": true,
   "required": ["missionId"],
@@ -10,6 +10,30 @@
     "missionId": {
       "type": "string",
       "format": "uuid"
+    },
+    "durationSeconds": {
+      "type": "number",
+      "description": "Source video duration in seconds, derived from frameCount/fps (REQ-4.6). Omitted by consumers/producers still on the Phase 3 stub shape."
+    },
+    "fps": {
+      "type": "number",
+      "description": "Source video frames per second (REQ-4.6)."
+    },
+    "width": {
+      "type": "integer",
+      "description": "Source video frame width in pixels (REQ-4.6)."
+    },
+    "height": {
+      "type": "integer",
+      "description": "Source video frame height in pixels (REQ-4.6)."
+    },
+    "frameCount": {
+      "type": "integer",
+      "description": "Total frame count reported by the video container, per REQ-4.6's metadata pass (not yet verified against the real per-frame iteration count, which ProcessingCompletedPayload.frameCount carries once iteration finishes)."
+    },
+    "checksumSha256": {
+      "type": "string",
+      "description": "SHA-256 checksum of the source video file (REQ-4.6), stable across re-uploads under a different MinIO object key."
     }
   }
 }

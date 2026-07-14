@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://ai-defense-platform/schemas/processing-completed.schema.json",
   "title": "ProcessingCompletedPayload",
-  "description": "Payload for PROCESSING_COMPLETED (eventVersion 1). Stub-only in Phase 3 (PRD-Phase-3 non-goals) — no real detection/frame results yet, those land in Phase 4/5.",
+  "description": "Payload for PROCESSING_COMPLETED (eventVersion 1). Stub-only in Phase 3 (note carried a fixed stub marker, no frameCount/processingDurationMs). Phase 4 (PRD-Phase-4 REQ-4.10) makes note describe real frame iteration and adds the optional fields below with real values; still no detection results (Phase 5). Additive per ADR-005 — no eventVersion bump.",
   "type": "object",
   "additionalProperties": true,
   "required": ["missionId", "note"],
@@ -13,7 +13,15 @@
     },
     "note": {
       "type": "string",
-      "description": "Human-readable stub marker, e.g. \"stub: no frame processing in Phase 3\"."
+      "description": "Human-readable summary, e.g. \"Phase 4: real frame iteration complete, no detection model yet\" (Phase 3's stub note is no longer produced once REQ-4.10 is wired in)."
+    },
+    "frameCount": {
+      "type": "integer",
+      "description": "Number of frames actually decoded during iteration (REQ-4.2/4.10) — the real, verified count, as opposed to ProcessingStartedPayload.frameCount's container-reported estimate."
+    },
+    "processingDurationMs": {
+      "type": "number",
+      "description": "Wall-clock milliseconds spent iterating frames (REQ-4.8), excluding the MinIO download."
     }
   }
 }

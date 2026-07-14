@@ -454,15 +454,17 @@ normal dev machine still needs to confirm.
   open item, not duplicated per-phase.
 - **`apps/vision-service`'s Ruff/pytest verification used the
   sandbox's system Python 3.10, not the pinned 3.12** (same `uv sync`
-  network-egress gap as Phase 1's `uv.lock` entry — unchanged this
-  phase). All 18 tests pass and `ruff check`/`ruff format --check` are
+  network-egress gap as Phase 1's `uv.lock` entry — unchanged through
+  Phase 4). All tests pass and `ruff check`/`ruff format --check` are
   clean against 3.10; `per-file-ignores` entries (`N815`/`UP046`/`UP047`/
   `UP017` for `events/*.py`, `UP017` for `kafka/dead_letter.py` and
   `observability.py`) exist specifically to
   keep those files parseable on 3.10 (explicit `TypeVar`/`Generic`
   instead of PEP 695 syntax, `timezone.utc` instead of `datetime.UTC`).
-  Re-verify on a real 3.12 environment and drop the ignores if they're
-  no longer needed once `uv.lock` is generated.
+  `uv.lock` is now committed (see Phase 4's Known gaps) but this
+  sandbox still can't run `uv sync`/`uv lock` itself (GitHub release
+  CDN unreachable) — re-verify on a real 3.12 environment and drop the
+  ignores if they're no longer needed.
 - `aidefense.telemetry`, `aidefense.audit`, and `aidefense.device-events`
   topics are created (REQ-3.1) but have no producer or consumer —
   intentionally deferred, per [[PRD-Phase-3]]'s open questions.
@@ -477,54 +479,112 @@ Phase 3's Kafka consumer, idempotency, and retry/DLQ machinery in
 
 ### Package structure
 
-- [ ] REQ-4.1 — `src` layout confirmed, new modules added under it
+- [x] REQ-4.1 — `src` layout confirmed, new modules added under it — `video/`, `frames/`, `annotation/`, `metadata/`, `storage/` added under `src/vision_service/`, no restructuring needed (already `src`-layout since Phase 1)
 
 ### Video/image I/O and frame iteration
 
-- [ ] REQ-4.2 — OpenCV video reader, bounded-memory frame generator
-- [ ] REQ-4.3 — image reader through the same pipeline
+- [x] REQ-4.2 — OpenCV video reader, bounded-memory frame generator — `video/reader.py`'s `VideoReader`, `frames()` yields one `HxWxC uint8` frame at a time
+- [x] REQ-4.3 — image reader through the same pipeline — `video/image_reader.py`'s `read_image()`, same shape/dtype convention as a decoded video frame
 
 ### Preprocessing and annotation
 
-- [ ] REQ-4.4 — resize/normalize preprocessing module
-- [ ] REQ-4.5 — bounding-box/label annotation module
+- [x] REQ-4.4 — resize/normalize preprocessing module — `frames/preprocessing.py` (`resize`: uint8→uint8, `normalize`: uint8→float32 `[0,1]`)
+- [x] REQ-4.5 — bounding-box/label annotation module — `annotation/draw.py`'s `draw_detections()`, unit-tested against hand-built `Detection` fixtures (no real model output until Phase 5)
 
 ### Metadata extraction
 
-- [ ] REQ-4.6 — duration, fps, resolution, checksum
+- [x] REQ-4.6 — duration, fps, resolution, checksum — `metadata/extract.py`'s `extract_video_metadata()`, chunked (bounded-memory) SHA-256
 
 ### Control endpoints and readiness
 
-- [ ] REQ-4.7 — `/ready` reflects real Kafka/MinIO connectivity
+- [x] REQ-4.7 — `/ready` reflects real Kafka/MinIO connectivity — `kafka.runner.commands_consumer_runner.is_ready` + `storage.minio_client.minio_client.is_reachable()`; either check is skipped (treated ready) if its dependency isn't configured at all
 
 ### Structured logging
 
-- [ ] REQ-4.8 — frame-processing log lines, correlation-ID aware
+- [x] REQ-4.8 — frame-processing log lines, correlation-ID aware — download start/end, metadata-extracted, frame-iteration-complete log lines added to `commands_consumer.py`'s pipeline via the existing `observability.log()`/`log_context` pattern
 
 ### Normalized contracts
 
-- [ ] REQ-4.9 — `Frame`/`Detection` Pydantic models
+- [x] REQ-4.9 — `Frame`/`Detection` Pydantic models — `frames/models.py` (`Frame`, `Detection`, `BoundingBox`), camelCase fields per the same convention as `events/*.py`
 
 ### Real consumer pipeline
 
-- [ ] REQ-4.10 — real MinIO download + frame iteration replaces Phase 3 stub
-- [ ] REQ-4.11 — download/decode failure routes through retry/DLQ
+- [x] REQ-4.10 — real MinIO download + frame iteration replaces Phase 3 stub — `storage/minio_client.py`'s `MinioClient` (direct boto3 S3 client, not proxied through apps/api) + `commands_consumer.py`'s `handle_command_message()` now downloads, extracts metadata, iterates every frame, and publishes real `PROCESSING_STARTED`/`PROCESSING_COMPLETED` payloads (additive optional fields, ADR-005, no `eventVersion` bump)
+- [x] REQ-4.11 — download/decode failure routes through retry/DLQ — reuses REQ-3.9/3.10's machinery and additionally publishes `PROCESSING_FAILED` (the Phase 3 stub never published this event type at all, so `apps/api`'s existing `PROCESSING_FAILED → MissionStatus.FAILED` mapping was previously unreachable from vision-service)
 
 ### Testing
 
-- [ ] REQ-4.12 — unit tests per module; integration tests against a synthetic fixture video
+- [x] REQ-4.12 — unit tests per module; integration tests against a synthetic fixture video — `samples/sample-mission-clip.mp4` (12 frames, 64x48, 4fps) + `samples/sample-frame.png`, both deterministic/regeneratable via `apps/vision-service/scripts/generate_samples.py`; `tests/test_video_reader.py`, `test_image_reader.py`, `test_preprocessing.py`, `test_annotation.py`, `test_metadata.py`, `test_frames_models.py`, `test_minio_client.py`, `test_ready_dependencies.py` (new), `test_commands_consumer.py`/`test_health.py` (extended) — 58 tests total, all passing against this sandbox's system Python 3.10
 
 **Phase 4 exit:** all boxes above checked, plus the Definition of Done
-in [[PRD-Phase-4]] Section 8. **Status: planning only — implementation
-not yet started.**
+in [[PRD-Phase-4]] Section 8. **Status: substantively complete** — see
+Known gaps below for what a machine with Docker/network access still
+needs to verify (uv.lock re-lock, a real Python 3.12 run, and the
+pre-existing `pnpm`/`nx` build/test environment issues this session
+surfaced but did not introduce).
 
 ### Known gaps
 
-- `apps/vision-service/uv.lock` still not committed (carried over from
-  Phase 1/3's Known gaps) — should be generated on a machine with normal
-  network access before this phase's new dependencies
-  (`opencv-python-headless`, an S3/MinIO client) are added, per
-  [[PRD-Phase-4]]'s Dependencies section.
+- `apps/vision-service/uv.lock` **is now committed** (resolved outside
+  this session, ahead of this phase — see [[Vision_Service_Shell]]'s
+  prior Known gap, now superseded). However, this phase's three new
+  dependencies (`opencv-python-headless`, `numpy`, `boto3`) were added
+  to `pyproject.toml` by hand this session and are **not yet re-locked**
+  into `uv.lock` — this sandbox still can't run `uv sync`/`uv lock`
+  (`python-build-standalone` download from GitHub's release CDN is
+  unreachable here, re-confirmed this session). `uv lock` must be
+  re-run on a machine with network access before `apps/vision-service/Dockerfile`'s
+  `uv sync --frozen` will succeed again.
+- Verified in this sandbox: `ruff check`/`ruff format --check` clean,
+  all 58 `apps/vision-service` pytest tests pass — against system
+  Python 3.10 (installed via `pip install --break-system-packages`,
+  not `uv`, since `uv sync` can't reach a 3.12 interpreter here) and
+  PyPI-installed `opencv-python-headless`/`numpy`/`boto3` (PyPI itself
+  is reachable from this sandbox, unlike GitHub's release CDN — the
+  two blockers are independent). A real Python 3.12 run (per
+  `requires-python`) is still open, same as Phase 1/3's system-Python
+  caveat.
+- `docker`/`docker compose` remain unavailable in this sandbox (same
+  gap as every prior phase) — REQ-4.7's `/ready` Kafka/MinIO checks and
+  REQ-4.10's real MinIO download were verified via unit tests with
+  fakes (`FakeMinioClient` in `tests/test_commands_consumer.py`,
+  monkeypatched `minio_client.is_reachable` in
+  `tests/test_ready_dependencies.py`), not against a live broker/MinIO.
+  A real `docker compose up` + submitting a mission end-to-end is the
+  next verification step on a normal dev machine, per
+  [[PRD-Phase-4]] Section 8's Definition of Done.
+- **This session's changes are written but not committed.** A stale
+  `.git/index.lock` (created by an earlier `git status` in this
+  session, then un-removable — same mount-permission restriction as
+  the `_tmp_*`/`dist/` issues above) blocks every subsequent `git add`/
+  `git commit` in this sandbox. Every file listed in this changelog
+  entry is confirmed present in the working tree (`git status --short`
+  still works read-only), just not yet staged or committed. If this
+  persists in a future session, delete `.git/index.lock` by hand first.
+- **TS-side verification found two pre-existing environment issues,
+  neither caused by this phase's changes.** `packages/event-schemas`'s
+  additive `ProcessingStartedPayload`/`ProcessingCompletedPayload`
+  field changes were verified via `nx run @ai-defense/event-schemas:{lint,typecheck,test,build}`
+  (all pass — including the FIELD_NAMES-vs-schema sync test) and
+  `nx run @ai-defense/api:{lint,typecheck}` (both pass, confirming
+  `apps/api`'s code still compiles against the widened payload types).
+  `nx run @ai-defense/api:build` and `:test` both failed, but for
+  reasons unrelated to this phase: `build` hit `EPERM: operation not
+  permitted, unlink '.../apps/api/dist/prisma.config.js'` — a stale
+  `dist/` directory from an earlier build this session that this
+  sandbox's mounted-folder permissions won't let a fresh build
+  overwrite (the same restriction behind the long-standing `_tmp_*`
+  files at the repo root, which are `.gitignore`d and also could not be
+  removed this session for the same reason); `test` hit `Module
+  ts-jest in the transform option was not found` — `pnpm install`
+  itself could not complete this session (`EPERM: operation not
+  permitted, unlink '.../_tmp_8_...'`, the identical mount-permission
+  issue), so `node_modules/ts-jest` was simply never installed. Both
+  are infrastructure gaps a normal dev machine (or a sandbox without
+  this mount restriction) won't hit — `pnpm install && pnpm build &&
+  pnpm test` should be re-run there to confirm `apps/api`'s build/test
+  targets are unaffected by this phase's payload changes (typecheck
+  already gives strong confidence they are).
 
 ---
 
@@ -533,6 +593,7 @@ not yet started.**
 Append one line per completed task, newest first. Format:
 `YYYY-MM-DD — REQ-x.x or free text — one-line note`.
 
+- 2026-07-14 — REQ-4.1–4.12 implemented — Phase 4 (Python and OpenCV Foundation) built end-to-end: `video/reader.py`/`image_reader.py` (bounded-memory OpenCV I/O), `frames/models.py` (`Frame`/`Detection`/`BoundingBox`, camelCase per the events convention), `frames/preprocessing.py` (resize/normalize), `annotation/draw.py` (bounding-box/label drawing), `metadata/extract.py` (duration/fps/resolution/SHA-256 checksum), `storage/minio_client.py` (direct boto3 S3 client, module-level singleton). `commands_consumer.py`'s `handle_command_message()` gained a `minio_client` parameter and now downloads the mission's video, extracts metadata, iterates every frame for real (still no detection model), and publishes `PROCESSING_STARTED`/`PROCESSING_COMPLETED` with real metadata/frame-count/duration fields — added as optional, additive fields to `ProcessingStartedPayload`/`ProcessingCompletedPayload` across the JSON Schema, TS, and Pydantic mirrors (ADR-005, no `eventVersion` bump; `test_event_schema_sync.py`'s three-way check still passes). An unrecoverable download/decode failure now also publishes `PROCESSING_FAILED` (previously never emitted by vision-service, so `apps/api`'s existing `PROCESSING_FAILED → FAILED` mapping was dead code until now) alongside the existing DLQ publish. `/ready` now reports real Kafka-consumer and MinIO reachability via `kafka.runner.commands_consumer_runner.is_ready`/`storage.minio_client.minio_client.is_reachable()` — `commands_consumer_runner` moved to a `kafka.runner`-level singleton so `routes/health.py` can share it without a circular import. Added `samples/sample-mission-clip.mp4`+`sample-frame.png` (deterministic synthetic fixtures, regeneratable via `apps/vision-service/scripts/generate_samples.py`) and 26 new tests across 8 new/extended test files (58 total, all passing). Verified: `ruff check`/`ruff format --check` clean and full pytest suite green against this sandbox's system Python 3.10; TS side verified via `nx run @ai-defense/event-schemas:{lint,typecheck,test,build}` and `@ai-defense/api:{lint,typecheck}` (all pass) — `@ai-defense/api:{build,test}` failed on two pre-existing sandbox/mount issues unrelated to this phase (stale `dist/` can't be unlinked; `pnpm install` can't complete so `ts-jest` was never installed), documented in this phase's Known gaps rather than worked around. `uv.lock` was found already committed (resolved outside this session) but is not yet re-locked for this phase's three new dependencies — also in Known gaps.
 - 2026-07-14 — REQ-1.21 reversed — Disabled Conventional Commits enforcement per explicit request: `.husky/commit-msg` is now a no-op, and CI's `commitlint` job was removed from `.github/workflows/ci.yml`. `commitlint.config.cjs` left in place but unused. Updated [[CONTRIBUTING]], [[Coding_Standards]], [[Local_Development_Stack]] to describe the format as recommended-but-unenforced. REQ-1.21 unchecked in Phase 1 above; see that section's Known gaps for detail.
 - 2026-07-14 — REQ-2.14 tests written — Wrote `apps/api/test/mission-lifecycle.e2e-spec.ts`: the three integration tests the PRD names — mission CRUD round-trip, signed URL generation (with object-key attach verified), illegal-transition rejection (DRAFT→COMPLETED, asserts 409/`MISSION_ILLEGAL_TRANSITION`) — all driven over real HTTP via `supertest` against the full `AppModule` (register → JWT → authenticated requests), following REQ-3.15's env-gating/raw-`pg.Client`-cleanup house style. Confirmed `KafkaModule` doesn't need excluding: its consumer's `onModuleInit` no-ops without `KAFKA_BROKERS` rather than failing boot, so this suite only requires Postgres + MinIO per the PRD. Lint and `tsc --noEmit` both clean. Not yet run — no docker in this sandbox; needs `docker compose up -d postgres minio` + env vars on a normal dev machine, then `pnpm --filter @ai-defense/api run test:e2e`.
 - 2026-07-14 — Phase 4 planning — Drafted [[PRD-Phase-4]] (REQ-4.1–4.12), covering OpenCV video/image readers with bounded-memory frame iteration, preprocessing/annotation utilities, metadata extraction (duration/fps/resolution/checksum), extended `/ready` (real Kafka/MinIO connectivity), normalized `Frame`/`Detection` Pydantic contracts, and replacing Phase 3's stub consumer pipeline with real MinIO download + frame iteration (still no model inference — that's Phase 5). No new ADR required: OpenCV and MinIO/S3 are already accepted in [[Technology_Decisions]]. Flags the still-uncommitted `apps/vision-service/uv.lock` (carried over from Phase 1/3) as a prerequisite to close before this phase's new dependencies are added. Phase 4 checklist added below, all unchecked — implementation not yet started.
