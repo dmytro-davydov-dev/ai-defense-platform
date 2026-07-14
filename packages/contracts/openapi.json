@@ -1,0 +1,417 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/": {
+      "get": {
+        "operationId": "AppController_getServiceInfo",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": ["App"]
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "HealthController_getHealth",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": ["Health"]
+      }
+    },
+    "/ready": {
+      "get": {
+        "operationId": "HealthController_getReady",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": ["Health"]
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "operationId": "AuthController_register",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Create a new operator account and return a JWT.",
+        "tags": ["auth"]
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "operationId": "AuthController_login",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Exchange email/password for a JWT.",
+        "tags": ["auth"]
+      }
+    },
+    "/missions": {
+      "post": {
+        "operationId": "MissionsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMissionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create a mission in DRAFT state.",
+        "tags": ["missions"]
+      },
+      "get": {
+        "operationId": "MissionsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List all missions.",
+        "tags": ["missions"]
+      }
+    },
+    "/missions/{id}": {
+      "get": {
+        "operationId": "MissionsController_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get a mission by id.",
+        "tags": ["missions"]
+      },
+      "patch": {
+        "operationId": "MissionsController_updateMetadata",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMissionMetadataDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update mission metadata (only while DRAFT).",
+        "tags": ["missions"]
+      }
+    },
+    "/missions/{id}/transition": {
+      "post": {
+        "operationId": "MissionsController_transition",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransitionMissionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Transition a mission's state (REQ-2.2 state machine enforced).",
+        "tags": ["missions"]
+      }
+    },
+    "/missions/{id}/upload-url": {
+      "post": {
+        "operationId": "MissionsController_createUploadUrl",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUploadUrlDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Issue a presigned MinIO upload URL scoped to this mission and attach the object key (REQ-2.9, mission-scoped).",
+        "tags": ["missions"]
+      }
+    },
+    "/storage/upload-url": {
+      "post": {
+        "operationId": "StorageController_createUploadUrl",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUploadUrlDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Issue a presigned MinIO upload URL for a new object.",
+        "tags": ["storage"]
+      }
+    },
+    "/storage/download-url": {
+      "get": {
+        "operationId": "StorageController_getDownloadUrl",
+        "parameters": [
+          {
+            "name": "objectKey",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Issue a presigned MinIO download URL for an existing object.",
+        "tags": ["storage"]
+      }
+    }
+  },
+  "info": {
+    "title": "AI Defense Platform API",
+    "description": "Control-plane API — mission lifecycle, identity, upload, audit.",
+    "version": "0.1.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "schemas": {
+      "RegisterDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "operator@ai-defense.example"
+          },
+          "password": {
+            "type": "string",
+            "example": "correct horse battery staple",
+            "minLength": 8
+          },
+          "displayName": {
+            "type": "string",
+            "example": "Jane Operator"
+          }
+        },
+        "required": ["email", "password", "displayName"]
+      },
+      "LoginDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "operator@ai-defense.example"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "required": ["email", "password"]
+      },
+      "CreateMissionDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "example": "Coastal flyover — sector 4"
+          },
+          "description": {
+            "type": "string",
+            "example": "Weekly inspection pass, sector 4 shoreline."
+          }
+        },
+        "required": ["title"]
+      },
+      "UpdateMissionMetadataDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "example": "Coastal flyover — sector 4 (rescheduled)"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "TransitionMissionDto": {
+        "type": "object",
+        "properties": {
+          "targetState": {
+            "type": "string",
+            "enum": ["DRAFT", "QUEUED", "PROCESSING", "COMPLETED", "FAILED"],
+            "example": "QUEUED"
+          }
+        },
+        "required": ["targetState"]
+      },
+      "CreateUploadUrlDto": {
+        "type": "object",
+        "properties": {
+          "fileName": {
+            "type": "string",
+            "example": "mission-42-flyover.mp4"
+          },
+          "contentType": {
+            "type": "string",
+            "example": "video/mp4"
+          }
+        },
+        "required": ["fileName", "contentType"]
+      }
+    }
+  }
+}

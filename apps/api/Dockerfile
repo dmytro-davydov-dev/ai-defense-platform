@@ -33,4 +33,11 @@ COPY --from=build /workspace/apps/api/package.json ./package.json
 COPY --from=build /workspace/node_modules ./node_modules
 
 EXPOSE 3000
-CMD ["node", "dist/main.js"]
+# Not "dist/main.js": apps/api/tsconfig.json sets rootDir to "./"
+# (apps/api itself, not "src") so one tsc invocation also compiles the
+# sibling prisma.config.ts and generated/prisma/ alongside src/ — every
+# src/ file's output nests one level deeper as a result
+# (dist/src/main.js, not dist/main.js). Confirmed broken as
+# "dist/main.js" the first time this image was actually run — see
+# docs/roadmap/Progress.md Known gaps.
+CMD ["node", "dist/src/main.js"]
