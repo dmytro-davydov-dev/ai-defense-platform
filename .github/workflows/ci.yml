@@ -17,7 +17,10 @@ concurrency:
 
 env:
   PNPM_VERSION: "9.15.9"
-  NODE_VERSION: "20"
+  # 22+ required from Phase 2 onward — the generated Prisma client
+  # (REQ-2.1) needs Node's newer ESM-in-CJS auto-detection. See
+  # docs/roadmap/Progress.md Known gaps.
+  NODE_VERSION: "22"
 
 jobs:
   commitlint:
@@ -53,6 +56,10 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # REQ-2.1/2.3: generates apps/api/generated/prisma/ (gitignored)
+      # from schema.prisma — typecheck/test/build all statically import
+      # it (PrismaService), so it must exist before those targets run.
+      - run: pnpm --filter @ai-defense/api exec prisma generate
       - uses: nrwl/nx-set-shas@v4
       - run: pnpm exec nx affected -t lint --base=$NX_BASE --head=$NX_HEAD
       - run: pnpm exec nx affected -t typecheck --base=$NX_BASE --head=$NX_HEAD

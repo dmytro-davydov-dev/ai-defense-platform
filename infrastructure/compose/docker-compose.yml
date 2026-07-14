@@ -113,6 +113,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
       MINIO_MISSIONS_BUCKET: ${MINIO_MISSIONS_BUCKET:-mission-videos}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1h}
     ports:
       - "${API_PORT:-3000}:3000"
     depends_on:

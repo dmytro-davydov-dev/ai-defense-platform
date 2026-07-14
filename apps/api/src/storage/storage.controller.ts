@@ -5,37 +5,40 @@ import {
   Post,
   Body,
   Query,
+  UseGuards,
 } from "@nestjs/common";
-import { ApiOperation, ApiTags } from "@nestjs/swagger";
+import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { StorageService } from "./storage.service";
 import { CreateUploadUrlDto } from "./dto/create-upload-url.dto";
 import { SignedUrlResponseDto } from "./dto/signed-url-response.dto";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../auth/guards/roles.guard";
+import { Roles } from "../auth/decorators/roles.decorator";
+import { ROLE_NAMES } from "../roles/roles.constants";
 
 /**
  * REQ-2.9: signed upload/download URLs against MinIO.
  *
- * TEMPORARY SECURITY GAP: these routes are unauthenticated. RBAC
- * (`@UseGuards(JwtAuthGuard, RolesGuard)`) is required per REQ-2.5
- * before this is production-safe, but AuthModule/PrismaService are
- * blocked in this environment until `prisma generate` can run against
- * a network with access to binaries.prisma.sh — see
- * docs/roadmap/Progress.md "Known gaps". Do not deploy this endpoint
- * as-is; the guard must land before Phase 2 closes (tracked as part of
- * REQ-2.5).
+ * Now RBAC-guarded (REQ-2.5) — closes the temporary gap tracked in
+ * Security_Baseline.md/API_Shell.md once AuthModule/PrismaService
+ * landed.
  *
- * Also temporary: routes live at the top level (`/storage/...`) rather
- * than nested under a mission (e.g. `POST /missions/:id/upload-url` per
- * PRD-Phase-2 §6 step 7) because `MissionModule` doesn't exist yet
- * (also blocked on Prisma). Once it does, this controller's logic
- * should move behind a mission-scoped route; `StorageService` itself
- * is already mission-agnostic and reusable as-is.
+ * Still top-level (`/storage/...`) rather than mission-scoped: for a
+ * mission's own upload flow, prefer
+ * `POST /missions/:id/upload-url` (`MissionsController`), which
+ * additionally records the object key on the mission and writes an
+ * audit row. These generic routes remain for any non-mission-scoped
+ * use of `StorageService`.
  */
 @ApiTags("storage")
+@ApiBearerAuth()
 @Controller("storage")
 export class StorageController {
   constructor(private readonly storageService: StorageService) {}
 
   @Post("upload-url")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLE_NAMES.OPERATOR, ROLE_NAMES.ADMIN)
   @ApiOperation({
     summary: "Issue a presigned MinIO upload URL for a new object.",
   })
@@ -58,6 +61,7 @@ export class StorageController {
   }
 
   @Get("download-url")
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({
     summary: "Issue a presigned MinIO download URL for an existing object.",
   })

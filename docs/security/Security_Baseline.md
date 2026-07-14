@@ -27,19 +27,31 @@ full OIDC, mTLS and threat modeling remain Phase 10.
   the audit trail on `main` legible — a prerequisite for the append-only
   audit logging Phase 2 adds at the application layer.
 
+## What's here now
+
+- `AuthModule` (REQ-2.4/2.5/2.6): JWT-based auth, bcrypt password
+  hashing, `operator`/`admin` RBAC via `JwtAuthGuard` + `RolesGuard`. See
+  [[API_Shell]] for the module breakdown.
+- Every mutating endpoint in `apps/api` — mission CRUD/transitions,
+  storage upload/download URLs — requires a valid JWT; mutating routes
+  additionally require the `operator` or `admin` role.
+- Every mission-lifecycle action and auth event (register, login
+  success/failure, token issuance) writes an append-only `audit_log` row
+  (REQ-2.10) via `AuditModule`.
+- `StorageModule`'s upload/download endpoints are no longer
+  unauthenticated — the gap flagged below (previously open) is closed.
+
 ## What's deliberately not here yet
 
-- No authentication or authorization anywhere in `apps/api` yet.
-  **This is no longer a "nothing sensitive exists" situation**:
-  `StorageModule` (Phase 2, REQ-2.9) issues real presigned MinIO
-  upload/download URLs from unauthenticated endpoints
-  (`POST /storage/upload-url`, `GET /storage/download-url`). This is a
-  deliberate, temporary sequencing gap — `AuthModule`'s RBAC guard
-  (REQ-2.5) is blocked on the same Prisma-generation issue documented in
-  `docs/roadmap/Progress.md` Known gaps, not skipped by choice. It must
-  close before Phase 2 exits; see [[API_Shell]] for the tracking note.
 - No dependency/container vulnerability scanning in CI yet; no SBOM.
   Full supply-chain controls remain Phase 10.
+- RBAC is two flat roles (`operator`, `admin`) — no finer-grained
+  authorization (e.g. mission ownership checks, a read-only `viewer`
+  role) until Phase 6's frontend surfaces a concrete need, per
+  [[PRD-Phase-2]]'s open questions.
+- JWTs are verified statelessly — a role change or account disable takes
+  effect on the user's next login, not immediately. Full OIDC/session
+  revocation remains Phase 10.
 
 ------------------------------------------------------------------------
 
