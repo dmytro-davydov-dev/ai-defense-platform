@@ -9,6 +9,7 @@ import { RolesModule } from "./roles/roles.module";
 import { UsersModule } from "./users/users.module";
 import { AuthModule } from "./auth/auth.module";
 import { MissionsModule } from "./missions/missions.module";
+import { KafkaModule } from "./kafka/kafka.module";
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { MissionsModule } from "./missions/missions.module";
     AuthModule,
     MissionsModule,
     StorageModule,
+    KafkaModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],

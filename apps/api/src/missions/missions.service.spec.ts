@@ -24,6 +24,7 @@ describe("MissionsService (REQ-2.7/2.8/2.13)", () => {
     setVideoObjectKey: jest.Mock;
   };
   let audit: { record: jest.Mock };
+  let outbox: { insert: jest.Mock };
   let prisma: { $transaction: jest.Mock };
   let service: MissionsService;
 
@@ -37,13 +38,19 @@ describe("MissionsService (REQ-2.7/2.8/2.13)", () => {
       setVideoObjectKey: jest.fn(),
     };
     audit = { record: jest.fn().mockResolvedValue(undefined) };
+    outbox = { insert: jest.fn().mockResolvedValue("event-1") };
     prisma = {
       $transaction: jest.fn((callback: (tx: unknown) => unknown) =>
         callback("fake-tx"),
       ),
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    service = new MissionsService(repo as any, audit as any, prisma as any);
+    service = new MissionsService(
+      repo as any,
+      audit as any,
+      outbox as any,
+      prisma as any,
+    );
   });
 
   describe("createMission", () => {
@@ -168,6 +175,57 @@ describe("MissionsService (REQ-2.7/2.8/2.13)", () => {
         }),
         "fake-tx",
       );
+    });
+
+    it("writes an outbox row (REQ-3.6) only on DRAFT -> QUEUED, in the same transaction", async () => {
+      const withVideo = {
+        ...baseMission,
+        videoObjectKey: "missions/mission-1/video.mp4",
+      };
+      repo.findById
+        .mockResolvedValueOnce(withVideo)
+        .mockResolvedValueOnce(withVideo);
+      repo.updateStatus.mockResolvedValue({
+        ...withVideo,
+        status: MissionStatus.QUEUED,
+      });
+
+      await service.transition("mission-1", MissionStatus.QUEUED, {
+        actorUserId: "user-1",
+        correlationId: "corr-2",
+      });
+
+      expect(outbox.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          aggregateType: "mission",
+          aggregateId: "mission-1",
+          eventType: "MISSION_PROCESSING_REQUESTED",
+          payload: {
+            missionId: "mission-1",
+            videoObjectKey: "missions/mission-1/video.mp4",
+          },
+          correlationId: "corr-2",
+          causationId: null,
+        }),
+        "fake-tx",
+      );
+    });
+
+    it("does not write an outbox row for a non-DRAFT->QUEUED transition", async () => {
+      const processing = { ...baseMission, status: MissionStatus.PROCESSING };
+      repo.findById
+        .mockResolvedValueOnce(processing)
+        .mockResolvedValueOnce(processing);
+      repo.updateStatus.mockResolvedValue({
+        ...processing,
+        status: MissionStatus.COMPLETED,
+      });
+
+      await service.transition("mission-1", MissionStatus.COMPLETED, {
+        actorUserId: "user-1",
+      });
+
+      expect(outbox.insert).not.toHaveBeenCalled();
     });
 
     it("rejects with MISSION_STATE_CHANGED_CONCURRENTLY if the status changed between read and write", async () => {

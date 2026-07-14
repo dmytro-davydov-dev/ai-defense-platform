@@ -3,9 +3,12 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { EVENT_TYPES } from "@ai-defense/event-schemas";
+import type { MissionProcessingRequestedPayload } from "@ai-defense/event-schemas";
 import { MissionStatus } from "../../generated/prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { AuditService } from "../audit/audit.service";
+import { OutboxRepository } from "../outbox/outbox.repository";
 import { MissionsRepository } from "./missions.repository";
 import {
   isLegalMissionTransition,
@@ -18,7 +21,14 @@ import type {
 } from "./mission.types";
 
 interface ActionContext {
-  actorUserId: string;
+  /**
+   * Undefined for system-triggered transitions with no human actor —
+   * REQ-3.14's Kafka consumer drives `transition()` off consumed
+   * events, not an HTTP request, so there is no operator to attribute
+   * the resulting audit row to. `AuditService`/`AuditRepository` already
+   * treat a missing actor as legal (REQ-2.6's failed-login case).
+   */
+  actorUserId?: string | undefined;
   correlationId?: string | undefined;
 }
 
@@ -33,6 +43,7 @@ export class MissionsService {
   constructor(
     private readonly missionsRepository: MissionsRepository,
     private readonly auditService: AuditService,
+    private readonly outboxRepository: OutboxRepository,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -156,6 +167,34 @@ export class MissionsService {
         },
         tx,
       );
+
+      // REQ-3.6: DRAFT -> QUEUED writes one outbox row, in this same
+      // transaction, so the command can never be "lost" relative to the
+      // state change that requested it (both commit together or
+      // neither does). REQ-3.12: causationId is null — this is the
+      // first event in the chain, triggered by an HTTP request, not
+      // another event.
+      if (
+        mission.status === MissionStatus.DRAFT &&
+        targetState === MissionStatus.QUEUED
+      ) {
+        const payload: MissionProcessingRequestedPayload = {
+          missionId: id,
+          videoObjectKey: current.videoObjectKey ?? "",
+        };
+        await this.outboxRepository.insert(
+          {
+            aggregateType: "mission",
+            aggregateId: id,
+            eventType: EVENT_TYPES.MISSION_PROCESSING_REQUESTED,
+            payload,
+            correlationId: ctx.correlationId,
+            causationId: null,
+          },
+          tx,
+        );
+      }
+
       return updated;
     });
   }
