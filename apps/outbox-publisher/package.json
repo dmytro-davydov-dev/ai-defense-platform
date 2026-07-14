@@ -1,23 +1,27 @@
 {
   "name": "@ai-defense/outbox-publisher",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Transactional Outbox poller/publisher. Empty stub in Phase 1 — implemented in Phase 3 (docs/mvp-plan/PRD-Phase-1.md REQ-1.6).",
+  "description": "Transactional Outbox poller/publisher (PRD-Phase-3 REQ-3.7): polls apps/api's `outbox` table and publishes unpublished rows to Kafka.",
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
-    "test": "echo \"@ai-defense/outbox-publisher: stub, implemented in Phase 3\" && exit 0",
+    "test": "tsc -p tsconfig.json && node --test dist/*.test.js",
     "start": "node dist/main.js"
   },
   "dependencies": {
-    "@ai-defense/observability": "workspace:*"
+    "@ai-defense/event-schemas": "workspace:*",
+    "@ai-defense/observability": "workspace:*",
+    "kafkajs": "2.2.4",
+    "pg": "^8.13.0"
   },
   "devDependencies": {
     "@ai-defense/eslint-config": "workspace:*",
     "@ai-defense/ts-config": "workspace:*",
     "@types/node": "^22.10.2",
+    "@types/pg": "^8.11.0",
     "eslint": "^9.17.0",
     "typescript": "^5.7.2"
   }
