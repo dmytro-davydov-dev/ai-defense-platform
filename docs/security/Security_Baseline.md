@@ -1,7 +1,7 @@
 ---
 title: Security Baseline
 type: security
-tags: [security, phase1]
+tags: [security, phase1, phase3]
 status: accepted
 ---
 
@@ -40,6 +40,16 @@ full OIDC, mTLS and threat modeling remain Phase 10.
   (REQ-2.10) via `AuditModule`.
 - `StorageModule`'s upload/download endpoints are no longer
   unauthenticated — the gap flagged below (previously open) is closed.
+- Phase 3's Kafka consumers (`apps/api`'s
+  `processing-events.handler.ts`) call `MissionsService.transition()`
+  with no HTTP actor — `ActionContext.actorUserId` is now
+  `string | undefined` specifically to allow this. The resulting
+  `audit_log` row has `actor_user_id: null`, same as the pre-existing
+  failed-login case (REQ-2.6) — a system-triggered transition is
+  distinguishable from an operator-triggered one by that null, not by a
+  separate flag. No new authentication surface was added: Kafka
+  consumers run inside `apps/api`'s own process, trusted the same way
+  its own outbox-publisher's writes already are.
 
 ## What's deliberately not here yet
 
@@ -58,6 +68,8 @@ full OIDC, mTLS and threat modeling remain Phase 10.
 ## Related Notes
 
 - [[PRD-Phase-1]] — REQ-1.18.
+- [[PRD-Phase-3]] — REQ-3.14's system-triggered transitions.
 - [[MVP_Implementation_Plan]] — "Security baseline" cross-cutting
   concern; Phase 2 (JWT auth); Phase 10 (full hardening).
 - [[Local_Development_Stack]] — where `.env`/secrets handling is wired.
+- [[Local_Kafka_Redpanda]] — the Kafka consumers this note's new entry covers.
