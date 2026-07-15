@@ -15,6 +15,7 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { ROLE_NAMES } from "../roles/roles.constants";
+import { JwtOrDeviceAuthGuard } from "../edge-auth/jwt-or-device-auth.guard";
 
 /**
  * REQ-2.9: signed upload/download URLs against MinIO.
@@ -61,9 +62,10 @@ export class StorageController {
   }
 
   @Get("download-url")
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtOrDeviceAuthGuard)
   @ApiOperation({
-    summary: "Issue a presigned MinIO download URL for an existing object.",
+    summary:
+      "Issue a presigned MinIO download URL for an existing object. Accepts either an operator/admin JWT or an edge device's bearer token (REQ-9.13/9.15, docs/adr/ADR-011-device-identity-and-sync-transport.md) — the edge agent uses this to download its resolved production model without ever holding MinIO credentials directly.",
   })
   async getDownloadUrl(
     @Query("objectKey") objectKey?: string,

@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ai-defense-platform/schemas/device-health-reported.schema.json",
+  "title": "DeviceHealthReportedPayload",
+  "description": "Payload for DEVICE_HEALTH_REPORTED (eventVersion 1, Phase 9, docs/mvp-plan/PRD-Phase-9.md REQ-9.11). Published to aidefense.device-events once per synchronized health snapshot an edge agent uploads via POST /edge/events. Not mission-scoped — deviceId is the Kafka partition key, not a missionId (docs/adr/ADR-011-device-identity-and-sync-transport.md).",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["deviceId", "reportedAt", "bufferDepth", "lastSyncAt", "uptimeSeconds", "status"],
+  "properties": {
+    "deviceId": {
+      "type": "string",
+      "description": "The registered edge device's human-chosen label (edge_devices.device_id), not a UUID surrogate key."
+    },
+    "reportedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the edge agent recorded this health snapshot — may lag the envelope's occurredAt if this event was buffered offline before syncing."
+    },
+    "bufferDepth": {
+      "type": "integer",
+      "description": "Number of not-yet-synchronized rows in the edge agent's local SQLite buffer at the time of this report."
+    },
+    "lastSyncAt": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of this device's last successful synchronization before this report, or null if it has never synced."
+    },
+    "uptimeSeconds": {
+      "type": "number",
+      "description": "Seconds since the edge agent process started."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["ok", "degraded"],
+      "description": "A simple threshold-based self-assessment, not a machine-diagnosed value — \"degraded\" signals a persistently non-empty/growing buffer or an unreachable local inference sidecar."
+    }
+  }
+}

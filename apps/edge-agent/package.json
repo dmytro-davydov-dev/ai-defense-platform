@@ -1,17 +1,18 @@
 {
   "name": "@ai-defense/edge-agent",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Edge/Jetson runtime agent. Empty stub in Phase 1 — implemented in Phase 9 (docs/mvp-plan/PRD-Phase-1.md REQ-1.7).",
+  "description": "Edge/Jetson runtime agent (PRD-Phase-9 REQ-9.1-9.16): local buffering, store-and-forward sync, device identity, health reporting, and model resolution, supervising a Python detection sidecar (docs/adr/ADR-010-edge-runtime-language-and-inference-strategy.md).",
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
-    "test": "echo \"@ai-defense/edge-agent: stub, implemented in Phase 9\" && exit 0",
-    "start": "node dist/main.js"
+    "test": "tsc -p tsconfig.json && node --experimental-sqlite --test dist/*.test.js",
+    "start": "node --experimental-sqlite dist/main.js"
   },
   "dependencies": {
+    "@ai-defense/event-schemas": "workspace:*",
     "@ai-defense/observability": "workspace:*"
   },
   "devDependencies": {

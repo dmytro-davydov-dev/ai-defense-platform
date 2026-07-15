@@ -11,6 +11,8 @@ export const EVENT_TYPES = {
   PROCESSING_FAILED: "PROCESSING_FAILED",
   /** Phase 5 (docs/mvp-plan/PRD-Phase-5.md REQ-5.6). */
   DETECTION_PUBLISHED: "DETECTION_PUBLISHED",
+  /** Phase 9 (docs/mvp-plan/PRD-Phase-9.md REQ-9.11). */
+  DEVICE_HEALTH_REPORTED: "DEVICE_HEALTH_REPORTED",
 } as const;
 
 export type EventType = (typeof EVENT_TYPES)[keyof typeof EVENT_TYPES];
@@ -22,6 +24,7 @@ export const EVENT_VERSIONS: Record<EventType, number> = {
   PROCESSING_COMPLETED: 1,
   PROCESSING_FAILED: 1,
   DETECTION_PUBLISHED: 1,
+  DEVICE_HEALTH_REPORTED: 1,
 };
 
 export interface MissionProcessingRequestedPayload {
@@ -126,4 +129,35 @@ export const DETECTION_PUBLISHED_FIELD_NAMES = [
   "label",
   "confidence",
   "boundingBox",
+] as const;
+
+/**
+ * Phase 9 (docs/mvp-plan/PRD-Phase-9.md REQ-9.11): published by
+ * `apps/api`'s `EdgeEventsService` (via the existing `outbox` table and
+ * `apps/outbox-publisher`, docs/adr/ADR-011-device-identity-and-sync-transport.md)
+ * once per synchronized device-health report the edge agent uploads —
+ * not mission-scoped, so this is not one of `MISSION_SCOPED_TOPICS`
+ * (topics.ts); every event on `aidefense.device-events` uses `deviceId`
+ * as its Kafka partition key instead.
+ */
+export interface DeviceHealthReportedPayload {
+  readonly deviceId: string;
+  /** ISO 8601 timestamp the edge agent recorded this health snapshot at (may lag `occurredAt` if it was buffered offline). */
+  readonly reportedAt: string;
+  /** Number of not-yet-synchronized rows in the edge agent's local buffer at the time of this report. */
+  readonly bufferDepth: number;
+  /** ISO 8601 timestamp of this device's last successful synchronization before this report, or null if it has never synced. */
+  readonly lastSyncAt: string | null;
+  /** Seconds since the edge agent process started. */
+  readonly uptimeSeconds: number;
+  /** "ok" | "degraded" — "degraded" signals a persistently non-empty/growing buffer or an unreachable local inference sidecar; not a machine-diagnosed value, set by the edge agent's own simple threshold check. */
+  readonly status: string;
+}
+export const DEVICE_HEALTH_REPORTED_FIELD_NAMES = [
+  "deviceId",
+  "reportedAt",
+  "bufferDepth",
+  "lastSyncAt",
+  "uptimeSeconds",
+  "status",
 ] as const;

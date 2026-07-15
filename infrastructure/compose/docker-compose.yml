@@ -129,6 +129,12 @@ services:
       KAFKA_BROKERS: redpanda:9092
       MINIO_ENDPOINT: minio
       MINIO_PORT: 9000
+      # apps/api/src/storage/storage.service.ts: the browser (running on
+      # the host, not inside the Compose network) can't resolve
+      # MINIO_ENDPOINT="minio" — presigned URLs must be signed against
+      # the host-published port instead. Tracks MINIO_PORT so a
+      # non-default port still produces a reachable URL.
+      MINIO_PUBLIC_ENDPOINT: http://localhost:${MINIO_PORT:-9000}
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
       MINIO_MISSIONS_BUCKET: ${MINIO_MISSIONS_BUCKET:-mission-videos}

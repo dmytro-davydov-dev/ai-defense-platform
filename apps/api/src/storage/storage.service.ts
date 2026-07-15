@@ -33,6 +33,11 @@ export interface SignedUrlResult {
 
 const DEFAULT_EXPIRY_SECONDS = 900; // 15 minutes
 
+/** `.env.example`-documented vars ship blank rather than absent, so `??` alone won't fall through — treat `""` the same as unset. */
+function nonEmptyEnv(value: string | undefined): string | undefined {
+  return value !== undefined && value.trim().length > 0 ? value : undefined;
+}
+
 /**
  * Signed upload/download URL generation against MinIO (REQ-2.9,
  * docs/mvp-plan/PRD-Phase-2.md). `apps/api` never proxies video bytes —
@@ -47,6 +52,7 @@ const DEFAULT_EXPIRY_SECONDS = 900; // 15 minutes
 export class StorageService implements OnModuleInit {
   private readonly logger = new Logger(StorageService.name);
   private readonly client: S3Client;
+  private readonly presignClient: S3Client;
   private readonly bucket: string;
   private readonly datasetsBucket: string;
   private readonly modelsBucket: string;
@@ -71,8 +77,20 @@ export class StorageService implements OnModuleInit {
       );
     }
 
-    this.client = new S3Client({
-      endpoint: `http://${endpoint}:${port}`,
+    const internalEndpointUrl = `http://${endpoint}:${port}`;
+    // REQ-2.9: presigned URLs are handed to the *browser*, which can't
+    // resolve `MINIO_ENDPOINT` when it's the in-Compose service name
+    // ("minio") — that hostname only exists inside the Docker network.
+    // MINIO_PUBLIC_ENDPOINT lets Compose supply a browser-reachable
+    // host (e.g. http://localhost:9000) for signing only, while every
+    // server-side call (bucket checks, uploadText/downloadText) keeps
+    // using the internal endpoint apps/api itself can actually reach.
+    // Blank/unset falls back to the internal endpoint, preserving the
+    // original single-endpoint behavior for non-Compose local runs.
+    const publicEndpointUrl =
+      nonEmptyEnv(process.env["MINIO_PUBLIC_ENDPOINT"]) ?? internalEndpointUrl;
+
+    const sharedClientConfig = {
       // MinIO doesn't support virtual-hosted-style bucket addressing by
       // default — path-style is required.
       forcePathStyle: true,
@@ -80,7 +98,15 @@ export class StorageService implements OnModuleInit {
       // set for SigV4 signing.
       region: "us-east-1",
       credentials: { accessKeyId, secretAccessKey },
+    };
+    this.client = new S3Client({
+      endpoint: internalEndpointUrl,
+      ...sharedClientConfig,
     });
+    this.presignClient =
+      publicEndpointUrl === internalEndpointUrl
+        ? this.client
+        : new S3Client({ endpoint: publicEndpointUrl, ...sharedClientConfig });
   }
 
   async onModuleInit(): Promise<void> {
@@ -175,7 +201,7 @@ export class StorageService implements OnModuleInit {
       Key: objectKey,
       ContentType: contentType,
     });
-    const url = await getSignedUrl(this.client, command, {
+    const url = await getSignedUrl(this.presignClient, command, {
       expiresIn: expiresInSeconds,
     });
     return {
@@ -193,7 +219,7 @@ export class StorageService implements OnModuleInit {
       Bucket: this.bucket,
       Key: objectKey,
     });
-    const url = await getSignedUrl(this.client, command, {
+    const url = await getSignedUrl(this.presignClient, command, {
       expiresIn: expiresInSeconds,
     });
     return {

@@ -1,8 +1,23 @@
+import { config } from "dotenv";
 import { NestFactory } from "@nestjs/core";
 import { ValidationPipe } from "@nestjs/common";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { log } from "@ai-defense/observability";
 import { AppModule } from "./app.module";
+
+// Plain `import "dotenv/config"` (as prisma.config.ts uses) only loads
+// `.env` from process.cwd() — it does not pick up `.env.local`. Loaded
+// explicitly here, cwd-relative (not `__dirname`-relative, which
+// differs between `nest start` dev and the compiled `dist/src/main.js`
+// prod build), matching the Docker WORKDIR (apps/api) and local dev
+// cwd. Local-only convenience file, gitignored; unset vars still fall
+// through to the shell/Compose environment.
+config({ path: "./.env.local" });
+
+/** `.env.example`-documented vars ship blank rather than absent (REQ-1.18's committed-example convention), so `??` alone won't fall through — treat `""` the same as unset. */
+function nonEmptyEnv(value: string | undefined): string | undefined {
+  return value !== undefined && value.trim().length > 0 ? value : undefined;
+}
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -14,7 +29,7 @@ async function bootstrap() {
   // `Authorization` header (docs/security/Security_Baseline.md) — no
   // cookies involved — so credentials don't need to be enabled here.
   const corsOrigins = (
-    process.env["CORS_ORIGIN"] ||
+    nonEmptyEnv(process.env["CORS_ORIGIN"]) ??
     `http://localhost:${process.env["WEB_PORT"] ?? 5173}`
   )
     .split(",")

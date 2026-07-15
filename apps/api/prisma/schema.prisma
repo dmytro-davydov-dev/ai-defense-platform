@@ -379,6 +379,38 @@ model ModelVersion {
   @@map("model_versions")
 }
 
+// Phase 9 (docs/mvp-plan/PRD-Phase-9.md REQ-9.9/9.10): one row per
+// registered edge device. `tokenHash` is a SHA-256 hex digest of the
+// device's bearer credential — the credential itself is returned once,
+// at registration time, and never stored (docs/adr/ADR-011-device-identity-and-sync-transport.md).
+// `deviceId` is the human-chosen label (e.g. "jetson-01") a device
+// authenticates and synchronizes as; `id` is the usual surrogate key.
+// `revokedAt` is the only supported way to invalidate a device's access
+// — there is no token rotation in this phase (see the ADR's Consequences
+// section).
+//
+// NOTE: like every model added since Phase 3, this could not be
+// migrated via `prisma migrate dev`/`prisma generate` in this sandbox
+// (binaries.prisma.sh network-blocked — see docs/roadmap/Progress.md
+// Known gaps). Plain relational columns throughout, so once `prisma
+// generate` runs on a machine with network access, `EdgeDevicesRepository`
+// could move to the generated `edgeDevice` delegate without a schema
+// change. Hand-written SQL:
+// apps/api/prisma/migrations/20260715210000_edge_runtime/migration.sql.
+model EdgeDevice {
+  id            String    @id @default(uuid())
+  deviceId      String    @unique @map("device_id")
+  tokenHash     String    @unique @map("token_hash")
+  displayName   String?   @map("display_name")
+  createdById   String?   @map("created_by_id")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  lastSeenAt    DateTime? @map("last_seen_at")
+  lastSyncAt    DateTime? @map("last_sync_at")
+  revokedAt     DateTime? @map("revoked_at")
+
+  @@map("edge_devices")
+}
+
 // REQ-3.8: idempotent consumption on both sides of the broker. One row
 // per (eventId, consumer) — `apps/api` and `apps/vision-service` each
 // record their own consumer name, so the same eventId can be safely

@@ -18,6 +18,7 @@ from vision_service.events.envelope import EventEnvelope
 from vision_service.events.payloads import (
     DeadLetterPayload,
     DetectionPublishedPayload,
+    DeviceHealthReportedPayload,
     MissionProcessingRequestedPayload,
     ProcessingCompletedPayload,
     ProcessingFailedPayload,
@@ -72,6 +73,11 @@ PAYLOAD_CASES = [
         "detection-published.schema.json",
         "DETECTION_PUBLISHED_FIELD_NAMES",
         DetectionPublishedPayload,
+    ),
+    (
+        "device-health-reported.schema.json",
+        "DEVICE_HEALTH_REPORTED_FIELD_NAMES",
+        DeviceHealthReportedPayload,
     ),
 ]
 

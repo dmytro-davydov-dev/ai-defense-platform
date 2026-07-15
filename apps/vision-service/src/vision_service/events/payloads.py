@@ -16,6 +16,13 @@ EVENT_TYPES = {
     "PROCESSING_FAILED": "PROCESSING_FAILED",
     # Phase 5 (docs/mvp-plan/PRD-Phase-5.md REQ-5.6).
     "DETECTION_PUBLISHED": "DETECTION_PUBLISHED",
+    # Phase 9 (docs/mvp-plan/PRD-Phase-9.md REQ-9.11). Not produced by
+    # apps/vision-service itself (apps/api's EdgeEventsService is the
+    # producer) — the Pydantic mirror exists here only so
+    # test_event_schema_sync.py can keep this event type's shape in sync
+    # across the JSON Schema/TS/Pydantic three-way check, the same as
+    # every other declared event type.
+    "DEVICE_HEALTH_REPORTED": "DEVICE_HEALTH_REPORTED",
 }
 
 # ADR-005: eventVersion is scoped per eventType, not global.
@@ -25,6 +32,7 @@ EVENT_VERSIONS = {
     "PROCESSING_COMPLETED": 1,
     "PROCESSING_FAILED": 1,
     "DETECTION_PUBLISHED": 1,
+    "DEVICE_HEALTH_REPORTED": 1,
 }
 
 
@@ -152,4 +160,32 @@ DETECTION_PUBLISHED_FIELD_NAMES = (
     "label",
     "confidence",
     "boundingBox",
+)
+
+
+class DeviceHealthReportedPayload(BaseModel):
+    """REQ-9.11: one synchronized health snapshot from an edge agent,
+    published to `aidefense.device-events` by `apps/api`'s
+    `EdgeEventsService` — not produced by this service. See
+    packages/event-schemas/src/schemas/device-health-reported.schema.json
+    for the field-by-field description this mirrors.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    deviceId: str
+    reportedAt: str
+    bufferDepth: int
+    lastSyncAt: str | None
+    uptimeSeconds: float
+    status: str
+
+
+DEVICE_HEALTH_REPORTED_FIELD_NAMES = (
+    "deviceId",
+    "reportedAt",
+    "bufferDepth",
+    "lastSyncAt",
+    "uptimeSeconds",
+    "status",
 )

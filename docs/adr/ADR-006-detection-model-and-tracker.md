@@ -175,6 +175,17 @@ adapter" risk below is also unchanged — Phase 8 could not install
 `ultralytics`/`torch` in this sandbox either (see
 [[Detection_And_Tracking]]'s "What's not real yet").
 
+**Update (Phase 9):** [[PRD-Phase-9]] reused `OnnxDetectorAdapter`,
+`filter_detections`, `ALLOWED_CLASSES`, and `Tracker` completely
+unchanged inside a new subprocess wrapper
+(`vision_service.edge.sidecar`, see
+[[ADR-010-edge-runtime-language-and-inference-strategy]]) — the
+detector-adapter contract this ADR defined needed no changes to run at
+the edge either, the second phase in a row to confirm that. TensorRT
+remains unimplemented (no Jetson hardware in this sandbox to validate
+it against); `DetectorAdapterLike`'s existing swappable interface is
+what would carry it whenever that hardware becomes available.
+
 ---
 
 ## Related Notes

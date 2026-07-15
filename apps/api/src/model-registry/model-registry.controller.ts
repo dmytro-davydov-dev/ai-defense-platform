@@ -13,6 +13,7 @@ import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import { ROLE_NAMES } from "../roles/roles.constants";
+import { JwtOrDeviceAuthGuard } from "../edge-auth/jwt-or-device-auth.guard";
 import type { AuthenticatedUser } from "../auth/auth.types";
 import { ModelRegistryService } from "./model-registry.service";
 import { RegisterModelDto } from "./dto/register-model.dto";
@@ -59,10 +60,10 @@ export class ModelRegistryController {
   }
 
   @Get("production")
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtOrDeviceAuthGuard)
   @ApiOperation({
     summary:
-      "Get the current production model version (REQ-8.10) — the one apps/vision-service's detector factory resolves at startup when no explicit model path is configured.",
+      "Get the current production model version (REQ-8.10) — the one apps/vision-service's detector factory resolves at startup when no explicit model path is configured. Also used by the edge agent (REQ-9.13, docs/adr/ADR-011-device-identity-and-sync-transport.md) with a device token in place of an operator JWT.",
   })
   async getProduction(): Promise<ModelVersionResponseDto> {
     const model = await this.modelRegistryService.getProduction();

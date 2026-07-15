@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { AuditModule } from "../audit/audit.module";
 import { TrainingRunsModule } from "../training-runs/training-runs.module";
+import { EdgeAuthModule } from "../edge-auth/edge-auth.module";
 import { ModelRegistryController } from "./model-registry.controller";
 import { ModelRegistryService } from "./model-registry.service";
 import { ModelRegistryRepository } from "./model-registry.repository";
@@ -17,9 +18,12 @@ import { ModelRegistryRepository } from "./model-registry.repository";
  * gate than this phase's own Open Questions minimum ("reuse
  * operator/admin"), reflecting that changing which model runs in
  * production is a higher-consequence action than mission CRUD.
+ *
+ * EdgeAuthModule: GET /models/production accepts JwtOrDeviceAuthGuard
+ * (Phase 9 REQ-9.13) alongside its existing JwtAuthGuard route.
  */
 @Module({
-  imports: [TrainingRunsModule, AuditModule],
+  imports: [TrainingRunsModule, AuditModule, EdgeAuthModule],
   controllers: [ModelRegistryController],
   providers: [ModelRegistryService, ModelRegistryRepository],
   exports: [ModelRegistryService],

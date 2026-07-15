@@ -11,6 +11,10 @@ import type { OutboxRow } from "./outbox-row.js";
  */
 const EVENT_TYPE_TOPICS: Partial<Record<string, Topic>> = {
   [EVENT_TYPES.MISSION_PROCESSING_REQUESTED]: TOPICS.COMMANDS,
+  // Phase 9 (docs/mvp-plan/PRD-Phase-9.md REQ-9.11): written by
+  // apps/api's EdgeEventsService, one outbox row per synchronized
+  // device-health report (docs/adr/ADR-011-device-identity-and-sync-transport.md).
+  [EVENT_TYPES.DEVICE_HEALTH_REPORTED]: TOPICS.DEVICE_EVENTS,
 };
 
 export function topicForEventType(eventType: string): Topic {
@@ -47,7 +51,12 @@ export function buildEnvelopeFromOutboxRow(row: OutboxRow): EventEnvelope {
     // it) rather than crashing the publisher over a cosmetic field.
     correlationId: row.correlationId ?? row.eventId,
     causationId: row.causationId,
-    producer: row.aggregateType === "mission" ? "api" : "unknown",
+    // "api" covers both aggregateTypes currently written: "mission"
+    // (REQ-3.6) and "edge_device" (Phase 9 REQ-9.11) — both rows are
+    // always written by apps/api itself, never by a device or worker
+    // directly, so the producer is accurately "api" either way.
+    producer:
+      row.aggregateType === "mission" || row.aggregateType === "edge_device" ? "api" : "unknown",
     payload: row.payload,
   };
 }

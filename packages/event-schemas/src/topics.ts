@@ -17,10 +17,13 @@ export type Topic = (typeof TOPICS)[keyof typeof TOPICS];
 
 /**
  * REQ-3.2: these topics use the mission ID as the Kafka partition key, to
- * preserve per-mission ordering. aidefense.telemetry/audit/device-events
- * are not mission-scoped (REQ-3.1 creates them; no producer/consumer
- * work is in scope for them until the phase that needs them, per
- * PRD-Phase-3's open questions).
+ * preserve per-mission ordering. aidefense.telemetry/audit are not
+ * mission-scoped and still have no producer/consumer (REQ-3.1 creates
+ * them; deferred per PRD-Phase-3's open questions). aidefense.device-events
+ * is also not mission-scoped, but as of Phase 9
+ * (docs/mvp-plan/PRD-Phase-9.md REQ-9.11) it has a real producer —
+ * `apps/api`'s `EdgeEventsService`, via the outbox — using `deviceId` as
+ * its Kafka partition key instead of a mission ID.
  */
 export const MISSION_SCOPED_TOPICS: readonly Topic[] = [
   TOPICS.COMMANDS,

@@ -46,10 +46,11 @@ notes that build on it.
 - [[Security_Baseline]] — secrets handling, what's still unauthenticated.
 - [[Detection_And_Tracking]] — Phase 5's detect/filter/track/publish pipeline and safety boundary.
 
-`docs/c4/`, `docs/edge/` still have no notes — nothing grounded to
-document there until Phases 9+ (C4 diagrams, edge-runtime code).
-`docs/ai/` now has [[Detection_And_Tracking]], its first note, since
-Phase 5.
+- [[Edge_Runtime]] — Phase 9's `apps/edge-agent` implementation: local inference sidecar, offline buffer, store-and-forward sync, device identity, model resolution.
+
+`docs/c4/` still has no notes — nothing grounded to document there yet
+(C4 diagrams). `docs/ai/` has [[Detection_And_Tracking]] since Phase 5;
+`docs/edge/` now has [[Edge_Runtime]], its first note, since Phase 9.
 
 ## Governance — decisions and risk
 
@@ -63,6 +64,8 @@ Phase 5.
 - [[ADR-007-map-library-choice]] — MapLibre GL JS + token-free OSM raster tiles (Phase 7, accepted).
 - [[ADR-008-experiment-tracking-and-dataset-versioning]] — in-house Postgres/MinIO experiment tracking and dataset versioning over MLflow/DVC (Phase 8, accepted).
 - [[ADR-009-annotation-format]] — COCO JSON as the annotation interchange format (Phase 8, accepted).
+- [[ADR-010-edge-runtime-language-and-inference-strategy]] — Node orchestrator + Python detection sidecar over stdio (Phase 9, accepted).
+- [[ADR-011-device-identity-and-sync-transport]] — device bearer-token identity and HTTP sync transport (Phase 9, accepted).
 - [[Initial_Risk_Register]] — top platform-level risks and mitigations.
 
 ## Roadmap and planning — what happens when
@@ -80,7 +83,7 @@ Phase 5.
 - [[PRD-Phase-6]] — Phase 6 expanded into full requirements (REQ-6.1–6.18).
 - [[PRD-Phase-7]] — Phase 7 (MVP slice) expanded into full requirements (REQ-7.1–7.9).
 - [[PRD-Phase-8]] — Phase 8 (post-MVP, full roadmap scope) expanded into full requirements (REQ-8.1–8.17).
-- [[PRD-Phase-9]] — Phase 9 (post-MVP, full roadmap scope) expanded into full requirements (REQ-9.1–9.18); flags two required ADRs (ADR-010, ADR-011), not yet drafted.
+- [[PRD-Phase-9]] — Phase 9 (post-MVP, full roadmap scope) expanded into full requirements (REQ-9.1–9.18); implemented on ADR-010/ADR-011.
 
 ---
 

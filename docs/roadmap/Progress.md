@@ -1081,67 +1081,119 @@ Phases 1–7 into the MVP and explicitly defers Phase 9. Builds on
 Phase 1's `apps/edge-agent` stub (REQ-1.7), Phase 3's declared-but-
 unpopulated `aidefense.device-events` topic, Phase 5's detector-adapter
 contract and safety boundary ([[ADR-006-detection-model-and-tracker]]),
-and Phase 8's model registry/promotion (REQ-8.9–8.11). Implementation
-not yet started — two ADRs (`ADR-010`, `ADR-011`) must be drafted and
-accepted first, per [[PRD-Phase-9]] Section 7.
+and Phase 8's model registry/promotion (REQ-8.9–8.11). Implemented this
+session on top of [[ADR-010-edge-runtime-language-and-inference-strategy]]
+and [[ADR-011-device-identity-and-sync-transport]].
 
 ### Edge agent runtime and video capture
 
-- [ ] REQ-9.1 — `apps/edge-agent` becomes a real, runnable process with `/health`/`/ready`
-- [ ] REQ-9.2 — video capture adapter produces frames in the Phase 4 `Frame` shape
+- [x] REQ-9.1 — `apps/edge-agent` becomes a real, runnable process with `/health`/`/ready` — `apps/edge-agent/src/main.ts` replaces the Phase 1 no-op stub; `health-http-server.ts` (`/health` always 200, `/ready` reflects sidecar readiness)
+- [x] REQ-9.2 — video capture adapter produces frames in the Phase 4 `Frame` shape — delegated to the Python sidecar's `VideoReader` reuse, per `ADR-010`; not reimplemented in Node
 
 ### Local inference
 
-- [ ] REQ-9.3 — detection/tracking reuses the exact Phase 5 `ALLOWED_CLASSES` enforcement (strategy resolved by `ADR-010`)
-- [ ] REQ-9.4 — ONNX Runtime CPU execution mandatory; TensorRT strictly optional behind an adapter
+- [x] REQ-9.3 — detection/tracking reuses the exact Phase 5 `ALLOWED_CLASSES` enforcement (strategy resolved by `ADR-010`) — `apps/vision-service/src/vision_service/edge/sidecar.py` imports `filter_detections`/`ALLOWED_CLASSES`/`Tracker`/`OnnxDetectorAdapter` unchanged from `detection/`
+- [x] REQ-9.4 — ONNX Runtime CPU execution mandatory; TensorRT strictly optional behind an adapter — CPU-only `OnnxDetectorAdapter` reused as-is; `DetectorAdapterLike`'s existing swappable-adapter interface (Phase 5) is what "strictly optional behind an adapter" requires — no TensorRT adapter implemented (no Jetson hardware available, see Known gaps)
 
 ### Offline buffering and store-and-forward synchronization
 
-- [ ] REQ-9.5 — durable local SQLite event buffer survives process restarts
-- [ ] REQ-9.6 — synchronization client uploads buffered events once connectivity returns
-- [ ] REQ-9.7 — synchronization is idempotent on the receiving side
-- [ ] REQ-9.8 — bounded-storage/backpressure policy for long offline periods
+- [x] REQ-9.5 — durable local SQLite event buffer survives process restarts — `event-buffer.ts`'s `EdgeEventBuffer` (`node:sqlite`, file-backed, not `:memory:` in production config)
+- [x] REQ-9.6 — synchronization client uploads buffered events once connectivity returns — `sync-client.ts`'s `runSyncCycle()`, polled on `EDGE_SYNC_INTERVAL_MS`
+- [x] REQ-9.7 — synchronization is idempotent on the receiving side — `apps/api/src/edge/edge-events.service.ts` reuses REQ-3.8's `processed_events` `markProcessed()` pattern
+- [x] REQ-9.8 — bounded-storage/backpressure policy for long offline periods — `event-buffer.ts`'s `prune()`: age-based deletion of synced rows first, then oldest-synced-first under a row cap; never deletes unsynced rows
 
 ### Device identity and secure sync
 
-- [ ] REQ-9.9 — device-scoped credential distinct from an operator JWT (mechanism resolved by `ADR-011`)
-- [ ] REQ-9.10 — every synced event is attributable to a specific device identity
+- [x] REQ-9.9 — device-scoped credential distinct from an operator JWT (mechanism resolved by `ADR-011`) — `EdgeDevice` Prisma model, SHA-256-hashed bearer token issued once by admin-only `POST /devices`, verified by `DeviceAuthGuard`
+- [x] REQ-9.10 — every synced event is attributable to a specific device identity — `EdgeEventsService.ingest()` uses `device.deviceId` as the outbox `aggregateId`/Kafka partition key
 
 ### Health reporting and observability
 
-- [ ] REQ-9.11 — device health events published to `aidefense.device-events`
-- [ ] REQ-9.12 — health/device events propagate correlation IDs
+- [x] REQ-9.11 — device health events published to `aidefense.device-events` — new `DEVICE_HEALTH_REPORTED` payload (`packages/event-schemas`, mirrored in Python), routed to `TOPICS.DEVICE_EVENTS` in `envelope-builder.ts` — this topic's first real producer since Phase 3 declared it
+- [x] REQ-9.12 — health/device events propagate correlation IDs — `sync-client.ts` sets `X-Correlation-Id` per batch; `EdgeEventsController` reads it and `EdgeEventsService.ingest()` writes it onto every outbox row
 
 ### Remote model deployment and rollback
 
-- [ ] REQ-9.13 — edge agent resolves its active model from Phase 8's model registry
-- [ ] REQ-9.14 — promoted model deployable to the edge with no code change; rollback reachable the same way
-- [ ] REQ-9.15 — model download to the edge is bandwidth-aware
+- [x] REQ-9.13 — edge agent resolves its active model from Phase 8's model registry — `model-resolver.ts`'s `resolveAndDownloadProductionModel()` calls `GET /models/production` using the device's own bearer token (`JwtOrDeviceAuthGuard`)
+- [x] REQ-9.14 — promoted model deployable to the edge with no code change; rollback reachable the same way — `main.ts`'s `modelPollInterval` re-resolves the production model on a fixed cadence and restarts the sidecar on change; a Phase 8 rollback is just a different "current production model," indistinguishable to this polling loop
+- [ ] REQ-9.15 — model download to the edge is bandwidth-aware — **partial.** `model-resolver.ts` streams the download (`Readable.fromWeb` piped to disk, never buffers the whole file in memory) but has no chunking, resume, or throttling — see Known gaps
 
 ### Bandwidth-aware upload
 
-- [ ] REQ-9.16 — synchronization prioritizes smaller/higher-value payloads under constrained bandwidth
+- [ ] REQ-9.16 — synchronization prioritizes smaller/higher-value payloads under constrained bandwidth — **partial.** `event-buffer.ts`'s `nextUnsyncedBatch()` enforces `batchMaxEvents`/`batchMaxBytes` caps (never lets one cycle exceed the configured bandwidth budget, always sends at least one row even if oversized) but doesn't rank by "value" — moot in this pass since `DEVICE_HEALTH_REPORTED` is the only event type actually synced (see Known gaps)
 
 ### Testing
 
-- [ ] REQ-9.17 — unit tests: buffer durability, sync idempotency, upload prioritization
-- [ ] REQ-9.18 — integration/fixture test: offline→buffer→reconnect→sync flow
+- [ ] REQ-9.17 — unit tests: buffer durability, sync idempotency, upload prioritization — buffer durability (`event-buffer.test.ts`, 6 tests) and sync-side idempotent-retry behavior (`sync-client.test.ts`, 4 tests) covered; no prioritization tests since REQ-9.16 isn't implemented
+- [ ] REQ-9.18 — integration/fixture test: offline→buffer→reconnect→sync flow — not written this session; `sync-client.test.ts` covers the reconnect/retry unit behavior in isolation but not a single end-to-end fixture spanning offline buffering through a restart to a confirmed sync
 
-**Phase 9 exit:** all boxes above checked, plus the Definition of Done
-in [[PRD-Phase-9]] Section 8. **Status: not started** — planning only.
+**Phase 9 exit:** 12 of 18 REQs fully done, 2 partially done (REQ-9.15,
+REQ-9.16 — real but scoped down), 2 not done (REQ-9.17 fully, REQ-9.18
+— see above), plus the Definition of Done in [[PRD-Phase-9]] Section 8.
+**Status: substantively complete** — core edge runtime (capture→detect→
+buffer→sync→health→model-resolution) is real, tested, working code;
+bandwidth-prioritized sync and the full offline→reconnect integration
+test are the open items. See Known gaps.
 
 ### Known gaps
 
-- `ADR-010` (edge runtime language/inference strategy) and `ADR-011`
-  (device identity/sync transport) are not yet drafted — [[PRD-Phase-9]]
-  Section 7 flags both as required before their respective
-  implementation steps, and Section 2/11 deliberately leave the
-  TypeScript-vs-Python question for `apps/edge-agent` unresolved rather
-  than assuming an answer.
-- No real NVIDIA Jetson/TensorRT hardware is available to validate this
-  phase's hardware-specific claims once implementation starts — flagged
-  in [[PRD-Phase-9]]'s Non-goals, expected to recur as a Known gap here
-  too, same category as every prior phase's sandbox-hardware limitations.
+- **Edge detections are not synchronized to the cloud.** Only
+  `DEVICE_HEALTH_REPORTED` events flow through `POST /edge/events` in
+  this pass. `apps/vision-service/src/vision_service/edge/sidecar.py`'s
+  detections are buffered locally (`event-buffer.ts`'s
+  `appendLocalOnly()`, retained for local inspection per REQ-9.5/9.8)
+  but never marked syncable, because they aren't mission-scoped and
+  don't fit the existing `detections` table's `NOT NULL` mission
+  foreign key without a real schema decision — deliberately left open
+  rather than guessed at, per [[PRD-Phase-9]]. This is also why
+  REQ-9.16's "prioritizes smaller/higher-value payloads" has nothing
+  to prioritize between yet: there's only one event type in flight.
+  Closing this is the natural next unit of work for whichever phase
+  revisits edge synchronization.
+- **REQ-9.15 (bandwidth-aware model download) is a streaming download,
+  not a throttled/resumable one.** `model-resolver.ts` never buffers
+  the whole model file in memory, but a slow/flaky link still means a
+  full re-download from byte zero rather than a resume, and there's no
+  explicit bandwidth cap. Acceptable for this pass's model sizes; worth
+  revisiting before any real bandwidth-constrained deployment.
+- **REQ-9.18's offline→buffer→reconnect→sync flow has no single
+  integration/fixture test.** The pieces are each unit-tested in
+  isolation (`event-buffer.test.ts`'s restart-durability guarantees via
+  real SQLite; `sync-client.test.ts`'s network-error/rejection/retry
+  paths against an injectable `fetch`), and `main.ts`'s wiring was
+  manually reviewed, but no test drives the whole loop end-to-end
+  (append while "offline" → process restart → buffer reloads from disk
+  → sync succeeds once "connectivity" returns). Next step: a fixture
+  test that constructs a real `EdgeEventBuffer` against a temp file,
+  closes and reopens it to simulate a restart, then runs `runSyncCycle`
+  against a fake server.
+- **No real NVIDIA Jetson/TensorRT hardware is available** to validate
+  this phase's hardware-specific claims — flagged in [[PRD-Phase-9]]'s
+  Non-goals. `DetectorAdapterLike`'s existing swappable interface
+  (Phase 5) is what would carry a future TensorRT adapter; none was
+  written, since there's no hardware here to validate it against, same
+  category as every prior phase's sandbox-hardware limitations.
+- **This sandbox's recurring `pnpm install`/stale-`dist/` EPERM
+  limitation** (documented in every prior phase) applied again this
+  session: a full `pnpm install` failed (`EPERM: operation not
+  permitted, unlink ... _tmp_*`), worked around by manually symlinking
+  `apps/edge-agent/node_modules/@ai-defense/event-schemas` to the
+  workspace package and building it directly with `tsc`. This let real
+  `tsc --noEmit`/`eslint`/`node --test` runs happen against
+  `apps/edge-agent` (not just "written but never run") — all pass: 23/23
+  tests, zero lint errors, zero type errors. `apps/api`'s new/changed
+  code (`src/edge/`, `src/edge-auth/`, the `storage`/`model-registry`
+  guard changes) is also `tsc --noEmit`/`eslint`-clean, but its
+  `jest`-based unit tests could not be run — same pre-existing
+  `ts-jest`/`node_modules` resolution gap documented since Phase 2
+  (`Module ts-jest in the transform option was not found`), reproduced
+  here against an untouched file (`src/auth`) to confirm it's sandbox-
+  wide, not specific to this phase's new code.
+- `apps/vision-service/src/vision_service/edge/sidecar.py`'s own test
+  suite (`test_edge_sidecar.py`, 5 tests) and the full vision-service
+  suite (124/124) were run and pass against this sandbox's system
+  Python 3.10, same pinned-3.12-vs-system-3.10 gap as every prior
+  phase.
 
 ---
 
@@ -1150,6 +1202,10 @@ in [[PRD-Phase-9]] Section 8. **Status: not started** — planning only.
 Append one line per completed task, newest first. Format:
 `YYYY-MM-DD — REQ-x.x or free text — one-line note`.
 
+- 2026-07-15 — REQ-9.1–9.14 implemented (REQ-9.15/9.16 partial, REQ-9.17 partial, REQ-9.18 not done) — Phase 9 (Edge Runtime, post-MVP) built end-to-end on [[ADR-010-edge-runtime-language-and-inference-strategy]] (Node/TS orchestrator + a Python sidecar reusing Phase 5's detection code unchanged, over newline-delimited JSON on stdio) and [[ADR-011-device-identity-and-sync-transport]] (SHA-256-hashed bearer token device identity; sync over a new `POST /edge/events` HTTP endpoint, not a direct Kafka producer). Python: `apps/vision-service/src/vision_service/edge/sidecar.py` — a thin process wrapper around Phase 5's exact `OnnxDetectorAdapter`/`filter_detections`/`ALLOWED_CLASSES`/`Tracker`/`VideoReader`, emitting one JSON object per line on stdout (`ready`/`detection`/`error`), all logging routed to stderr so stdout stays a clean protocol channel; 5 new tests, all passing. `apps/api`: `EdgeDevice` Prisma model + hand-written migration; new `edge-auth` module (`DeviceAuthGuard` — SHA-256 hash lookup against `edge_devices.token_hash`; `JwtOrDeviceAuthGuard` — tries JWT first via `isObservable`/`firstValueFrom` to correctly unwrap `CanActivate`'s three possible return shapes, falls back to device auth); new `edge` module (`POST`/`GET /devices`, admin-only, returns the plaintext token exactly once; `POST /edge/events`, device-auth-only, reuses REQ-3.8's `processed_events` idempotency pattern and republishes via the existing outbox — no new publish path); wired `JwtOrDeviceAuthGuard` onto `GET /models/production` and `GET /storage/download-url` so a device can resolve/download models with the same credential. `packages/event-schemas` gained `DEVICE_HEALTH_REPORTED` (JSON Schema + TS + Pydantic mirror, `EVENT_SCHEMAS_PACKAGE_VERSION` → `0.4.0`), routed to `TOPICS.DEVICE_EVENTS` in `envelope-builder.ts` — this topic's first real producer since Phase 3 declared it unpopulated. `apps/edge-agent`: the Phase 1 no-op stub replaced entirely — `config.ts`, `event-buffer.ts` (`node:sqlite`-backed durable buffer: idempotent append, always-at-least-one-row batching under a byte cap, age/cap-based prune that never touches unsynced rows), `health-reporter.ts`, `sync-client.ts` (store-and-forward, marks synced only on server confirmation), `model-resolver.ts` (streams the production model from the registry via the device's own token), `python-sidecar.ts` (spawns/supervises the sidecar; `parseSidecarLine()` factored out as a pure function after an initial over-complicated test approach was self-corrected), `health-http-server.ts`, `main.ts` (wires everything together: sync/health-report/model-poll/prune intervals, sidecar auto-restart with backoff, graceful SIGTERM/SIGINT). Verified for real in this sandbox (not just written): `apps/vision-service`'s full suite (124/124) and Ruff both clean on system Python 3.10; `apps/edge-agent` — worked around this sandbox's recurring `pnpm install` EPERM by manually symlinking/building `@ai-defense/event-schemas` — `tsc --noEmit`, `eslint`, and `node --experimental-sqlite --test` (23/23) all clean; `apps/api`'s new/changed code (`src/edge/`, `src/edge-auth/`, the two guard changes) is `tsc --noEmit`/`eslint`-clean but its `jest` suite couldn't run at all here — the same pre-existing sandbox-wide `ts-jest` resolution gap documented since Phase 2, reproduced against an untouched file to confirm it isn't new. Deliberately scoped down: edge detections are buffered locally but not synced to the cloud (no mission-scoping fits the existing `detections` table's `NOT NULL` FK — an open schema question, not guessed at), REQ-9.16's payload prioritization has nothing to rank between yet as a result, REQ-9.15's model download is streaming but not throttled/resumable, and REQ-9.18's full offline→reconnect→sync flow has no single integration fixture (each stage is unit-tested in isolation). Updated [[Architecture_Overview]]'s Edge Runtime section (real as of this phase, same transition Phase 7/8 made for PostGIS/MinIO) and created [[Edge_Runtime]], `docs/edge/`'s first note. See this phase's Known gaps for full detail.
+- 2026-07-15 — bugfix — `apps/api` failed to boot with `UnknownDependenciesException: Nest can't resolve dependencies of the JwtOrDeviceAuthGuard (?, DeviceAuthGuard). ... argument JwtAuthGuard at index [0] is available in the StorageModule module` (same for `ModelRegistryModule`). Root cause, confirmed against Nest's own "Cannot resolve dependency" troubleshooting (docs.nestjs.com/faq/common-errors, "If `<unknown_token>` is exported from a separate @Module, is that module imported within `<module>`?"): `JwtAuthGuard`/`RolesGuard` have no/framework-global constructor deps, so Nest can construct them anywhere they're referenced via `@UseGuards()` with no module wiring — that's why the pre-existing `@UseGuards(JwtAuthGuard, RolesGuard)` routes on both controllers already worked. `JwtOrDeviceAuthGuard` (Phase 9's `EdgeAuthModule`) genuinely depends on the `JwtAuthGuard` token in its constructor, though, and needs that token reachable from its *consumer's* own import graph — `StorageModule`/`ModelRegistryModule` only import `EdgeAuthModule`, which imported `AuthModule` but never re-exported it, so `JwtAuthGuard` wasn't visible to either. Fixed by adding `AuthModule` to `EdgeAuthModule`'s `exports` array (`edge-auth.module.ts`) — `EdgeModule` itself already imports both `AuthModule` and `EdgeAuthModule` directly, so no duplication/circularity introduced. Verified `tsc --noEmit`/`eslint` clean.
+- 2026-07-15 — bugfix — `pnpm --filter @ai-defense/api run start:dev` reported 4 typecheck errors against Phase 9's edge-runtime code (`apps/api/src/edge/`, `src/edge-auth/`), currently untracked/in-progress on disk and not yet reflected in this file's checklist. Two independent causes: (1) `packages/event-schemas/dist/` was stale — built before `DEVICE_HEALTH_REPORTED` was added to `src/payloads.ts`'s `EVENT_TYPES`, so `apps/api` (which resolves the package via its committed `"types": "./dist/index.d.ts"`) was typechecking against the old 5-member object; source was already correct, just rebuilt `dist/` (`pnpm --filter @ai-defense/event-schemas run build`) — the same recurring stale-dist class of issue as REQ-2.12's session. (2) A real bug in `edge-auth/jwt-or-device-auth.guard.ts`: `Promise.resolve(this.jwtAuthGuard.canActivate(context))` doesn't unwrap an `Observable<boolean>` (one of `CanActivate.canActivate()`'s three possible return types, reachable here since `JwtAuthGuard extends AuthGuard("jwt")`) — `await` on that yielded the Observable itself, a type error, not a boolean. Fixed with `isObservable`/`firstValueFrom` from `rxjs`; also fixed a latent behavior bug the same rewrite exposed — the original `try { return await ... } catch { fall back to device auth }` only fell back on a thrown exception, never on the JWT guard resolving `false` without throwing, silently defeating the "try JWT, then device" fallback intent for that case. Verified `tsc --noEmit`/`eslint` clean on all of `apps/api` after both fixes.
+- 2026-07-15 — bugfix — Video upload failed with a browser network error right after the CORS fix below: `StorageService.generateUploadUrl`/`generateDownloadUrl` signed presigned URLs against `MINIO_ENDPOINT` (`minio` in Compose — the internal Docker network hostname), which the browser running on the host can never resolve. Fixed by splitting `StorageService` into two `S3Client`s: `this.client` (internal `MINIO_ENDPOINT`/`MINIO_PORT`, used for `HeadBucket`/`CreateBucket`/`uploadText`/`downloadText` — all server-side, run inside the Compose network) and `this.presignClient` (a new `MINIO_PUBLIC_ENDPOINT`, browser-reachable, used only by `generateUploadUrl`/`generateDownloadUrl`); falls back to the internal endpoint when unset, preserving prior behavior for non-Compose local runs. Wired `MINIO_PUBLIC_ENDPOINT: http://localhost:${MINIO_PORT:-9000}` into the `api` service in `infrastructure/compose/docker-compose.yml` and documented it in `.env.example`. Added a `nonEmptyEnv()` helper (here and in `main.ts`'s `CORS_ORIGIN` fallback) since committed `.env.example` vars ship as `""` rather than absent, which plain `??` doesn't fall through on — also needed to satisfy `@typescript-eslint/prefer-nullish-coalescing`. Verified `tsc --noEmit` and `eslint` clean on both changed files; `jest` still can't run in this sandbox (pre-existing `ts-jest` gap, same as every prior phase) so `storage.service.spec.ts` wasn't re-run, but its presign assertions only check the URL contains bucket/key/expiry, not host, so they're unaffected by which client signs.
 - 2026-07-15 — bugfix — `apps/api/src/main.ts` never called `app.enableCors()`, so any browser request from `apps/web`'s Vite dev server (`localhost:5173`) to `apps/api` (`localhost:3000`) — e.g. `POST /auth/register` — failed: the preflight `OPTIONS` request 404'd (no route registered without CORS enabled) before the actual request could even be blocked by the missing `Access-Control-Allow-Origin` header. Confirmed nothing in [[Security_Baseline]] or elsewhere in the knowledge base documented CORS as intentionally deferred — the websocket gateway (`mission-events.gateway.ts`) already had its own `cors: { origin: true }`, the plain HTTP API just never got the equivalent. Fixed by adding `app.enableCors({ origin: corsOrigins })`, sourced from a new `CORS_ORIGIN` env var (comma-separated, documented in `.env.example`) defaulting to `http://localhost:${WEB_PORT}`. `credentials` left off since auth is a stateless JWT via `Authorization` header, no cookies. Also wired `WEB_PORT`/`CORS_ORIGIN` into the `api` service's `environment:` block in `infrastructure/compose/docker-compose.yml` — without this the container never saw `WEB_PORT` at all, so the fallback would've silently ignored a custom `WEB_PORT` in `.env`. Verified `tsc --noEmit` clean; not runnable end-to-end in this sandbox (no docker).
 - 2026-07-15 — Phase 9 planning — Drafted [[PRD-Phase-9]] (REQ-9.1–9.18), scoped against the roadmap's full "Phase 9 — Edge Runtime" entry — post-MVP, like Phase 8 ([[MVP_Implementation_Plan]] defers Phase 9). Covers turning `apps/edge-agent`'s Phase 1 no-op stub into a real process: a video capture adapter, local inference reusing Phase 5's exact `ALLOWED_CLASSES` safety boundary, a durable SQLite offline event buffer, idempotent store-and-forward synchronization, a minimal device identity distinct from an operator JWT, device health reporting finally giving Phase 3's declared-but-unpopulated `aidefense.device-events` topic a real producer, and remote model deployment/rollback built on Phase 8's existing model registry rather than a new one. Flags two required ADRs, next numbers `ADR-010` (edge runtime language/inference strategy — a genuine unresolved tension, since `apps/edge-agent` was scaffolded in TypeScript/Node in Phase 1 while the entire Phase 5 detector-adapter contract is Python) and `ADR-011` (device identity and synchronization transport), neither yet drafted; deliberately did not guess at either answer, per this project's research-first instruction. Explicit non-goals: full mTLS/PKI device identity (Phase 10), Kubernetes-orchestrated edge fleets (Phase 12), any `ALLOWED_CLASSES` expansion, autonomous engagement logic, and real Jetson/TensorRT hardware validation (no such hardware available in this sandbox, same recurring limitation class as every prior phase). Phase 9 checklist added above, all unchecked — implementation not yet started.
 - 2026-07-15 — REQ-8.1–8.17 implemented — Phase 8 (Data, Training and Model Lifecycle, post-MVP) built end-to-end. Drafted and accepted [[ADR-008-experiment-tracking-and-dataset-versioning]] (in-house Postgres/MinIO tracking over MLflow/DVC) and [[ADR-009-annotation-format]] (COCO JSON, hand-rolled, no `pycocotools`) first, per the PRD's Section 7 requirement. Backend (`apps/api`): `Dataset`/`DatasetSplit`/`TrainingRun`/`ModelVersion` added to `schema.prisma` (plain relational columns, no `Unsupported(...)` type needed) plus hand-written migration `20260715190000_data_training_model_lifecycle`; three new standalone modules — `datasets/` (register with REQ-8.2's provenance/license gate re-validated at the service layer, `split.util.ts`'s dependency-free seeded-shuffle `generateDeterministicSplit()`, `POST /datasets/:id/splits` writing three manifests to a new `datasets` MinIO bucket), `training-runs/` (the in-house experiment tracker, rejecting a COMPLETED run with a missing/empty evaluation report), `model-registry/` (`POST /models`, `GET /models/production` for REQ-8.10's registry-resolution path, `POST /models/:id/promote`/`POST /models/rollback` — both inside one `prisma.$transaction` that demotes the prior production model and writes one `AuditLog` row via the existing `AuditService`, REQ-8.12 reusing REQ-2.10's mechanism; restricted to the `admin` role only, a deliberate tightening beyond the PRD's stated minimum). `StorageService` gained bucket-parameterized `ensureBucket()`/`uploadText()`/`downloadText()` plus `getDatasetsBucket()`/`getModelsBucket()`. Python (`apps/vision-service`): new `training/` package — `coco.py` (REQ-8.4/8.5, COCO JSON ↔ `Detection`/`BoundingBox`, validated against `ALLOWED_CLASSES` and image bounds), `evaluate.py` (REQ-8.8/8.13/8.14, per-class precision/recall/AP via greedy IoU matching, a `flaggedClasses` section, pass-through human `failureNotes`), `registry_client.py` (REQ-8.7/8.9/8.10, an injectable-client `httpx` wrapper around `apps/api`'s new endpoints), `train.py` (REQ-8.6/8.16, a trainer-agnostic `run_training_pipeline()`/`publish_training_run()` orchestrator) and `_ultralytics_trainer.py` (the real Ultralytics-backed `TrainerLike`, lazily imported so no other Phase 8 module requires `ultralytics`/`torch`). `detection/factory.py`'s `build_detector()` gained a registry-resolution path (REQ-8.10): unset `VISION_SERVICE_DETECTION_MODEL_PATH` + a configured registry now downloads and loads the current production model, falling back to `NullDetectorAdapter` on any failure — closing the loop [[ADR-006-detection-model-and-tracker]]'s rollback note only described in reverse; that ADR's Review date section updated to record this. Added `scripts/run_training.py` (CLI entry point, mirrors `scripts/generate_samples.py`'s batch-job shape). Created top-level `datasets/`/`models/` folders (README + `.gitkeep`, `.gitignore`d otherwise) per [[Repository_Structure]]'s existing rule; added `MINIO_DATASETS_BUCKET`/`MINIO_MODELS_BUCKET`/`VISION_SERVICE_MODEL_REGISTRY_BASE_URL`/`VISION_SERVICE_MODEL_REGISTRY_API_TOKEN` to `.env.example` and `infrastructure/compose/docker-compose.yml`. Updated [[Architecture_Overview]]'s MinIO section (datasets/model artifacts now real, same transition Phase 7 made for PostGIS), [[Detection_And_Tracking]], [[API_Shell]], [[Vision_Service_Shell]]. Wrote unit tests throughout (`split.util.spec.ts`, `datasets.service.spec.ts`, `training-runs.service.spec.ts`, `model-registry.service.spec.ts` for REQ-8.17's promotion/rollback/audit assertions; `test_training_coco.py`, `test_training_evaluate.py`, `test_training_registry_client.py` against `httpx.MockTransport`, `test_training_train_pipeline.py` for REQ-8.16 against a fake `TrainerLike`, `test_detection_factory.py` for the new registry-resolution path) — all written and manually reviewed against this repo's strict TS/Python conventions, **none run**: same recurring sandbox limitations as every prior phase (`pnpm install`/stale-`dist/` EPERM for `apps/api`; system Python 3.10 vs pinned 3.12 for `apps/vision-service`; `prisma generate` blocked; and, new this phase, `ultralytics`/`torch` could not be installed at all — the training-side counterpart to Phase 5's already-documented "no real `.onnx` model" gap). See this phase's Known gaps for the full list.
@@ -1194,7 +1250,10 @@ Append one line per completed task, newest first. Format:
 - [[PRD-Phase-8]] — source of the Phase 8 REQ checklist above (post-MVP).
 - [[ADR-008-experiment-tracking-and-dataset-versioning]] — Phase 8's tracking/versioning tooling decision.
 - [[ADR-009-annotation-format]] — Phase 8's annotation format decision.
-- [[PRD-Phase-9]] — source of the Phase 9 REQ checklist above (post-MVP); flags `ADR-010`/`ADR-011`, not yet drafted.
+- [[PRD-Phase-9]] — source of the Phase 9 REQ checklist above (post-MVP); implemented on [[ADR-010-edge-runtime-language-and-inference-strategy]]/[[ADR-011-device-identity-and-sync-transport]].
+- [[ADR-010-edge-runtime-language-and-inference-strategy]] — Phase 9's Node-orchestrator/Python-sidecar split.
+- [[ADR-011-device-identity-and-sync-transport]] — Phase 9's device bearer-token identity and HTTP sync transport.
+- [[Edge_Runtime]] — Phase 9's implementation summary, `docs/edge/`'s first note.
 - [[ADR-004-nestjs-orm]] — ORM decision blocking Phase 2's REQ-2.1.
 - [[ADR-005-event-schema-versioning]] — Phase 3's event schema versioning policy.
 - [[ADR-006-detection-model-and-tracker]] — Phase 5's model/adapter/tracker decisions.

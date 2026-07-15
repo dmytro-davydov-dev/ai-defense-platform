@@ -96,10 +96,20 @@ Responsibilities:
 Responsibilities:
 
 - approved sensor ingestion;
-- local inference;
-- offline buffering;
-- secure synchronization;
-- device health.
+- local inference — real as of Phase 9 (see [[PRD-Phase-9]] REQ-9.2/9.3,
+  `apps/vision-service`'s `vision_service.edge.sidecar`), not just an
+  aspirational entry in this list;
+- offline buffering — real as of Phase 9 (REQ-9.5/9.8, `apps/edge-agent`'s
+  `EdgeEventBuffer`, a durable `node:sqlite` store with a
+  bounded-storage prune policy);
+- secure synchronization — real as of Phase 9 (REQ-9.6/9.7/9.9/9.10, a
+  device bearer-token credential and idempotent `POST /edge/events`,
+  see [[ADR-011-device-identity-and-sync-transport]]);
+- device health — real as of Phase 9 (REQ-9.11/9.12, `DEVICE_HEALTH_REPORTED`
+  events, the first real producer for the `aidefense.device-events`
+  topic Phase 3 declared).
+
+See [[Edge_Runtime]] for the implementation summary.
 
 ## Primary flow
 
@@ -131,3 +141,5 @@ React → NestJS → PostgreSQL + Outbox → Kafka
 - [[Repository_Structure]] — how these containers map to repo folders.
 - [[MVP_Implementation_Plan]] — phased build-out of this architecture.
 - [[PRD-Phase-8]] — made the datasets/model-artifacts MinIO responsibilities real.
+- [[PRD-Phase-9]] — made the Edge Runtime container's responsibilities real.
+- [[Edge_Runtime]] — Phase 9's implementation summary.

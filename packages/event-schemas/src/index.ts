@@ -15,4 +15,4 @@ export * from "./topics";
 export * from "./envelope";
 export * from "./payloads";
 
-export const EVENT_SCHEMAS_PACKAGE_VERSION = "0.3.0" as const;
+export const EVENT_SCHEMAS_PACKAGE_VERSION = "0.4.0" as const;
