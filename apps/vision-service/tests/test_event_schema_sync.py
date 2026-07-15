@@ -17,6 +17,7 @@ import pytest
 from vision_service.events.envelope import EventEnvelope
 from vision_service.events.payloads import (
     DeadLetterPayload,
+    DetectionPublishedPayload,
     MissionProcessingRequestedPayload,
     ProcessingCompletedPayload,
     ProcessingFailedPayload,
@@ -67,6 +68,11 @@ PAYLOAD_CASES = [
     ),
     ("processing-failed.schema.json", "PROCESSING_FAILED_FIELD_NAMES", ProcessingFailedPayload),
     ("dead-letter.schema.json", "DEAD_LETTER_FIELD_NAMES", DeadLetterPayload),
+    (
+        "detection-published.schema.json",
+        "DETECTION_PUBLISHED_FIELD_NAMES",
+        DetectionPublishedPayload,
+    ),
 ]
 
 

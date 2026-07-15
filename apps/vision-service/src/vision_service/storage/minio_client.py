@@ -76,6 +76,17 @@ class MinioClient:
                 ) from error
             raise
 
+    def upload_from(self, source_path: str, object_key: str) -> None:
+        """REQ-5.7: uploads a local file (the annotated output video)
+        to `object_key` in the missions bucket. Any `botocore` error
+        (auth failure, network error, disk-full-on-the-server-side,
+        ...) propagates unchanged — the caller's existing retry/DLQ
+        machinery (REQ-3.9/3.10) already handles an unrecoverable
+        failure partway through `commands_consumer.py`'s pipeline the
+        same way it handles a download failure.
+        """
+        self._client.upload_file(source_path, self._bucket, object_key)
+
     def is_reachable(self) -> bool:
         """REQ-4.7: a lightweight reachability check for `/ready` —
         `HeadBucket` against the missions bucket, no object transfer.

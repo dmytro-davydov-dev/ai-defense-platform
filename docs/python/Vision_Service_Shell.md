@@ -1,7 +1,7 @@
 ---
 title: Vision Service Shell
 type: python
-tags: [python, phase1, phase3, phase4]
+tags: [python, phase1, phase3, phase4, phase5]
 status: accepted
 ---
 
@@ -10,11 +10,15 @@ status: accepted
 `apps/vision-service` started as a Phase 1 scaffold
 (`docs/mvp-plan/PRD-Phase-1.md`, REQ-1.5, REQ-1.13-1.15), gained a real
 Kafka consumer in Phase 3 (`docs/mvp-plan/PRD-Phase-3.md`,
-REQ-3.8/3.9/3.11/3.13), and gained real OpenCV frame processing in
-Phase 4 (`docs/mvp-plan/PRD-Phase-4.md`, REQ-4.1-4.12): the consumer
-now downloads the mission's video from MinIO, extracts real metadata,
-and iterates every frame — still no detection model, that's Phase 5
-(`docs/mvp-plan/MVP_Implementation_Plan.md`).
+REQ-3.8/3.9/3.11/3.13), real OpenCV frame processing in Phase 4
+(`docs/mvp-plan/PRD-Phase-4.md`, REQ-4.1-4.12), and real object
+detection/tracking in Phase 5 (`docs/mvp-plan/PRD-Phase-5.md`,
+REQ-5.1-5.12): the consumer now downloads the mission's video from
+MinIO, extracts real metadata, and for every frame runs a detector
+adapter, filters by confidence/class allow-list, tracks across frames,
+draws annotations, and publishes one `DETECTION_PUBLISHED` event per
+retained detection — then uploads the annotated video to MinIO. See
+[[ADR-006-detection-model-and-tracker]] for the model/tracker choices.
 
 ## What exists today
 
@@ -138,6 +142,99 @@ and iterates every frame — still no detection model, that's Phase 5
   Postgres needed — `FakeMinioClient` in `tests/test_commands_consumer.py`
   just copies the fixture to the requested temp path.
 
+## Phase 5: real detection and tracking
+
+- `detection/adapter.py` (REQ-5.1) — `DetectorAdapterLike` Protocol
+  (`detect(frame) -> list[Detection]`) plus `NullDetectorAdapter`, the
+  zero-detection fallback used both when
+  `VISION_SERVICE_DETECTION_MODEL_PATH` is unset (production
+  "disabled, not broken" default) and directly in tests that don't
+  care about detection output.
+- `detection/classes.py` (REQ-5.4) — `COCO_CLASSES` (the model's
+  80-class vocabulary) and `ALLOWED_CLASSES` (the safety-reviewed
+  civilian/synthetic allow-list, a strict subset, not
+  settings/env-configurable).
+- `detection/filters.py` (REQ-5.3/5.4) — `filter_detections()`, the
+  one shared confidence-threshold + class-allow-list stage every
+  detector adapter implementation goes through.
+- `detection/tracker.py` (REQ-5.5) — `Tracker`, an in-house,
+  dependency-free, per-label greedy IoU tracker (not the external
+  ByteTrack/BoT-SORT packages the roadmap names — see
+  [[ADR-006-detection-model-and-tracker]] for why). One instance per
+  mission, constructed fresh inside `detection/pipeline.py`.
+- `detection/onnx_detector.py` (REQ-5.2) — `OnnxDetectorAdapter`, CPU-only
+  ONNX Runtime inference against the standard Ultralytics YOLOv8 ONNX
+  export layout (`(1, 4+80, num_boxes)`, NMS via `cv2.dnn.NMSBoxes`).
+  Accepts an injected `session` for testing without a real `.onnx`
+  file — REQ-5.11's tests exercise the pre/postprocessing math against
+  a fake session with synthetic output only; no real model has been
+  run through this adapter in this sandbox.
+- `detection/factory.py` — `detector`, a module-level singleton built
+  once at import time (same pattern as `storage.minio_client`):
+  `OnnxDetectorAdapter` if `VISION_SERVICE_DETECTION_MODEL_PATH` is
+  set, `NullDetectorAdapter` otherwise.
+- `detection/pipeline.py` (REQ-5.7/5.9) — `run_detection_pipeline()`,
+  the real per-frame body that replaces Phase 4's counting-only loop:
+  for every frame, detect -> filter -> track -> annotate
+  (`annotation/draw.py`, now called with real, tracked detections,
+  the track ID shown in the label) -> write to an annotated-video
+  temp file. Returns every retained detection as a `DetectionEvent`
+  plus aggregate inference-duration metrics (REQ-5.8). Fully
+  synchronous — `kafka/commands_consumer.py` runs it via
+  `asyncio.to_thread` as one blocking call, since every step (OpenCV,
+  ONNX Runtime) is CPU-bound.
+- `frames/models.py`'s `Detection` gained an optional `trackId: int |
+  None` field (REQ-5.5), populated only by `Tracker.update()` —
+  hand-built `Detection` fixtures in tests still default to `None`,
+  unchanged annotation-label format.
+- `storage/minio_client.py`'s `MinioClient` gained `upload_from()`
+  (REQ-5.7), used to upload the annotated video to
+  `missions/{missionId}/annotated.mp4`.
+- `kafka/commands_consumer.py`'s `handle_command_message` gained a
+  fifth `detector` parameter (REQ-5.9) and now publishes one
+  `DETECTION_PUBLISHED` per retained detection to `aidefense.detections`
+  (mission ID as the partition key) between `PROCESSING_STARTED` and
+  `PROCESSING_COMPLETED`; `PROCESSING_COMPLETED` gained optional
+  `detectionCount`/`trackCount`/`annotatedVideoObjectKey` fields
+  (additive, ADR-005, no `eventVersion` bump). A model-load or
+  inference failure (`ModelLoadError`/`ModelInferenceError`/
+  `DetectionPipelineError`) is now special-cased in
+  `_structured_failure_reason()` alongside Phase 4's
+  `VideoOpenError`/`MetadataExtractionError`, reusing the same
+  retry/DLQ/`PROCESSING_FAILED` path (REQ-5.10).
+- `packages/event-schemas` gained `DETECTION_PUBLISHED` (JSON Schema +
+  TS + Pydantic, REQ-5.6) and additive `ProcessingCompletedPayload`
+  fields; `tests/test_event_schema_sync.py`'s three-way check covers
+  the new payload too. `EVENT_SCHEMAS_PACKAGE_VERSION` bumped to
+  `0.3.0`.
+- 61 new/extended tests this phase (`test_detection_filters.py`,
+  `test_detection_tracker.py`, `test_detection_onnx_detector.py`,
+  `test_detection_pipeline.py`, plus `test_commands_consumer.py`
+  rewritten for the 5-argument `handle_command_message` and the new
+  DETECTION_PUBLISHED/annotated-upload behavior) — 86 tests total in
+  `apps/vision-service`, all passing against this sandbox's system
+  Python 3.10; `ruff check`/`ruff format --check` clean. TS side:
+  `@ai-defense/event-schemas`'s lint/typecheck/test/build all pass;
+  `@ai-defense/api`'s typecheck reports success against the widened
+  `ProcessingCompletedPayload` type (a trailing sandbox-only `Operation
+  not permitted` error after that success line is the same mount-
+  permission class of issue as this file's `uv.lock`/`.git/index.lock`
+  gaps below, not a typecheck failure).
+
+### Known gap: no real `.onnx` model has been run through `OnnxDetectorAdapter`
+
+Per [[ADR-006-detection-model-and-tracker]]'s Risks: this sandbox has
+no network access to fetch or export a real YOLO model, and
+[[Repository_Structure]] explicitly forbids committing one anyway.
+`VISION_SERVICE_DETECTION_MODEL_PATH` is unset here, so
+`detection.factory.detector` resolves to `NullDetectorAdapter` — the
+full pipeline (filtering, tracking, annotation, event publishing,
+`PROCESSING_COMPLETED`) has been verified end-to-end via scripted/fake
+detectors, not against a real model's real output distribution. A real
+model run, and a real `docker compose up` end-to-end submission,
+remain open on a normal dev machine — same category as Phase 4's
+Python-3.12/Docker verification gap below.
+
 ## Known gap: `uv.lock` committed, but Phase 4's new dependencies aren't locked by it yet
 
 `uv.lock` (flagged as missing through Phase 1/3) is now committed —
@@ -154,11 +251,26 @@ re-run on a machine with network access. This is the same category of
 gap as the original `uv.lock` entry, now specifically about staying in
 sync after a dependency change rather than not existing at all.
 
+Phase 5 adds one more: `onnxruntime` was added to `pyproject.toml`'s
+`[project.dependencies]` the same way and is **also not yet locked**
+into `uv.lock` — installed via plain `pip install --break-system-packages`
+in this sandbox (confirmed importable, `onnxruntime==1.23.2`) for
+verification only, same workaround as Phase 4's three dependencies. No
+tracker-specific dependency was needed (the in-house tracker is
+dependency-free by design, per [[ADR-006-detection-model-and-tracker]]).
+`uv lock` must be re-run on a machine with network access before
+`uv sync --frozen` succeeds again.
+
 ## What's deliberately not here yet
 
-- No model inference, no real `Detection` values — `Detection`'s
-  fields exist (REQ-4.9) but nothing populates them; YOLO/ONNX Runtime
-  wiring is Phase 5.
+- No real trained model file — `OnnxDetectorAdapter` (REQ-5.2) is real
+  code, exercised only against a fake ONNX session with synthetic
+  output (see this file's Phase 5 Known gap above); no real weapon,
+  target-scoring, or engagement-relevant capability exists or is
+  planned, per the platform's permanent safety boundary.
+- Any expansion of `detection.classes.ALLOWED_CLASSES` beyond the 12
+  civilian/synthetic classes chosen in Phase 5 — a deliberate,
+  separately reviewed decision, not a default of any future phase.
 - `events/*.py`, `kafka/dead_letter.py`/`observability.py`, and (new
   this phase) `frames/models.py`/`metadata/extract.py` deliberately use
   explicit `TypeVar`/`Generic` (not PEP 695 generic syntax) and
@@ -177,12 +289,11 @@ sync after a dependency change rather than not existing at all.
   `Pool`/`Producer`/`MinioClient` doubles only (`tests/test_retry.py`,
   `test_idempotency.py`, `test_commands_consumer.py`), consistent with
   [[Local_Kafka_Redpanda]]'s Known gaps (no docker in this sandbox).
-  `apps/vision-service/tests/`'s full suite (58 tests as of this
-  update, including Phase 4's new video/image/metadata/annotation/
-  preprocessing/minio-client/ready-dependency modules) and `ruff
-  check`/`ruff format --check` were verified against this sandbox's
-  system Python 3.10 — a real Python 3.12 + Docker run of the full
-  Compose stack (per REQ-4.12's DoD) is still open.
+  `apps/vision-service/tests/`'s full suite (86 tests as of Phase 5,
+  including Phase 5's new detection/tracker/onnx-detector/pipeline
+  modules) and `ruff check`/`ruff format --check` were verified against
+  this sandbox's system Python 3.10 — a real Python 3.12 + Docker run
+  of the full Compose stack (per REQ-4.12/5.12's DoD) is still open.
 
 ------------------------------------------------------------------------
 
@@ -190,11 +301,14 @@ sync after a dependency change rather than not existing at all.
 
 - [[PRD-Phase-1]] — REQ-1.5, REQ-1.13, REQ-1.14, REQ-1.15.
 - [[PRD-Phase-3]] — REQ-3.8, REQ-3.9, REQ-3.11, REQ-3.13.
-- [[PRD-Phase-4]] — REQ-4.1 through REQ-4.12, all implemented this update.
+- [[PRD-Phase-4]] — REQ-4.1 through REQ-4.12.
+- [[PRD-Phase-5]] — REQ-5.1 through REQ-5.12, all implemented this update.
 - [[ADR-002-python-dependency-manager]] — why uv, and its Phase 1
   limitation above.
 - [[ADR-005-event-schema-versioning]] — the versioning policy
   `events/envelope.py` implements.
+- [[ADR-006-detection-model-and-tracker]] — the model, adapter
+  interface, and tracker choices Phase 5 implements.
 - [[Local_Kafka_Redpanda]] — the broker and topics this consumer reads
   from/writes to.
 - [[MVP_Implementation_Plan]] — Phase 4 (Python and OpenCV Foundation),

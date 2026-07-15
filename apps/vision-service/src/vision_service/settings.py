@@ -42,5 +42,18 @@ class Settings(BaseSettings):
         default="mission-videos", validation_alias="MINIO_MISSIONS_BUCKET"
     )
 
+    # Phase 5 (REQ-5.2/5.3): VISION_SERVICE_-prefixed since these are
+    # vision-service-specific, unlike KAFKA_BROKERS/MINIO_* above which
+    # apps/api also reads. detection_model_path defaults to "" (not a
+    # hard failure at settings-construction time) — the same "disabled,
+    # not broken" pattern as kafka_brokers/minio_root_user:
+    # detection.factory.build_detector() falls back to
+    # NullDetectorAdapter (zero detections, pipeline still runs)
+    # instead of crashing the app. See
+    # docs/adr/ADR-006-detection-model-and-tracker.md.
+    detection_model_path: str = Field(default="")
+    detection_confidence_threshold: float = Field(default=0.35, ge=0.0, le=1.0)
+    detection_input_size: int = Field(default=640, gt=0)
+
 
 settings = Settings()

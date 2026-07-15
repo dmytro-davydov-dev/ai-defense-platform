@@ -9,6 +9,8 @@ export const EVENT_TYPES = {
   PROCESSING_STARTED: "PROCESSING_STARTED",
   PROCESSING_COMPLETED: "PROCESSING_COMPLETED",
   PROCESSING_FAILED: "PROCESSING_FAILED",
+  /** Phase 5 (docs/mvp-plan/PRD-Phase-5.md REQ-5.6). */
+  DETECTION_PUBLISHED: "DETECTION_PUBLISHED",
 } as const;
 
 export type EventType = (typeof EVENT_TYPES)[keyof typeof EVENT_TYPES];
@@ -19,6 +21,7 @@ export const EVENT_VERSIONS: Record<EventType, number> = {
   PROCESSING_STARTED: 1,
   PROCESSING_COMPLETED: 1,
   PROCESSING_FAILED: 1,
+  DETECTION_PUBLISHED: 1,
 };
 
 export interface MissionProcessingRequestedPayload {
@@ -53,12 +56,20 @@ export interface ProcessingCompletedPayload {
   /** REQ-4.10, optional: real frame count/duration once the Phase 4 pipeline is wired in. */
   readonly frameCount?: number;
   readonly processingDurationMs?: number;
+  /** REQ-5.9, optional: populated once Phase 5's detection pipeline runs. */
+  readonly detectionCount?: number;
+  readonly trackCount?: number;
+  /** REQ-5.7, optional: MinIO object key of the annotated output video. */
+  readonly annotatedVideoObjectKey?: string;
 }
 export const PROCESSING_COMPLETED_FIELD_NAMES = [
   "missionId",
   "note",
   "frameCount",
   "processingDurationMs",
+  "detectionCount",
+  "trackCount",
+  "annotatedVideoObjectKey",
 ] as const;
 
 export interface ProcessingFailedPayload {
@@ -78,4 +89,41 @@ export const DEAD_LETTER_FIELD_NAMES = [
   "failureReason",
   "attempts",
   "topic",
+] as const;
+
+/**
+ * Phase 5 (docs/mvp-plan/PRD-Phase-5.md REQ-5.6): published once per
+ * retained (post-filter, post-tracking) detection to
+ * `aidefense.detections`, mission ID as the partition key. Only
+ * civilian/synthetic classes ever appear here — REQ-5.4's allow-list
+ * (`apps/vision-service/src/vision_service/detection/classes.py`) is
+ * enforced before this event is ever constructed.
+ */
+export interface DetectionBoundingBox {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+export interface DetectionPublishedPayload {
+  readonly missionId: string;
+  /** 0-based index of the frame this detection was observed on. */
+  readonly frameIndex: number;
+  /** Milliseconds from the start of the video, derived from frameIndex/fps. */
+  readonly frameTimestampMs: number;
+  /** Stable ID from the in-house tracker (docs/adr/ADR-006-detection-model-and-tracker.md). */
+  readonly trackId: number;
+  readonly label: string;
+  readonly confidence: number;
+  readonly boundingBox: DetectionBoundingBox;
+}
+export const DETECTION_PUBLISHED_FIELD_NAMES = [
+  "missionId",
+  "frameIndex",
+  "frameTimestampMs",
+  "trackId",
+  "label",
+  "confidence",
+  "boundingBox",
 ] as const;

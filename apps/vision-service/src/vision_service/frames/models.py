@@ -42,10 +42,16 @@ class BoundingBox(BaseModel):
 
 
 class Detection(BaseModel):
-    """Left unpopulated in practice until Phase 5 plugs in a real
-    detector (PRD-Phase-4 non-goals) — `annotation/draw.py` is unit-
-    tested this phase against hand-constructed instances of this model
-    only.
+    """Phase 4 left this unpopulated in practice (`annotation/draw.py`
+    was unit-tested only against hand-constructed instances). Phase 5
+    (docs/mvp-plan/PRD-Phase-5.md) is the first phase to construct real
+    instances: `detection.onnx_detector.OnnxDetectorAdapter.detect()`
+    returns them with `trackId` unset, and
+    `detection.tracker.Tracker.update()` is the only place `trackId`
+    gets populated (REQ-5.5) — every `Detection` that reaches
+    `annotation.draw.draw_detections` or an `aidefense.detections`
+    event has already been through both the tracker and REQ-5.3/5.4's
+    filtering.
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -53,6 +59,10 @@ class Detection(BaseModel):
     label: str
     confidence: float = Field(ge=0.0, le=1.0)
     boundingBox: BoundingBox
+    # REQ-5.5, optional: unset until detection.tracker.Tracker assigns
+    # a stable ID; stays None for hand-built fixtures in tests that
+    # never go through the tracker.
+    trackId: int | None = Field(default=None)
 
 
 class Frame(BaseModel):

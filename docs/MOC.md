@@ -44,10 +44,12 @@ notes that build on it.
 - [[Phase1_Testing_Baseline]] — per-app test runners and what's covered.
 - [[Observability_Baseline]] — structured logging, correlation IDs, health checks.
 - [[Security_Baseline]] — secrets handling, what's still unauthenticated.
+- [[Detection_And_Tracking]] — Phase 5's detect/filter/track/publish pipeline and safety boundary.
 
-`docs/ai/`, `docs/c4/`, `docs/edge/` have no notes yet — Phase 1 doesn't
-produce detection logic, C4 diagrams, or edge-runtime code, so there's
-nothing grounded to document there until Phases 4/5/9.
+`docs/c4/`, `docs/edge/` still have no notes — nothing grounded to
+document there until Phases 9+ (C4 diagrams, edge-runtime code).
+`docs/ai/` now has [[Detection_And_Tracking]], its first note, since
+Phase 5.
 
 ## Governance — decisions and risk
 
@@ -57,6 +59,7 @@ nothing grounded to document there until Phases 4/5/9.
 - [[ADR-003-kafka-distribution-local-compose]] — Redpanda for local Compose.
 - [[ADR-004-nestjs-orm]] — Prisma for `apps/api`'s ORM (Phase 2, proposed).
 - [[ADR-005-event-schema-versioning]] — additive-only, per-eventType versioning for Kafka events (Phase 3, accepted).
+- [[ADR-006-detection-model-and-tracker]] — YOLOv8n/ONNX Runtime model choice, detector adapter interface, and in-house tracker (Phase 5, accepted).
 - [[Initial_Risk_Register]] — top platform-level risks and mitigations.
 
 ## Roadmap and planning — what happens when
@@ -70,6 +73,7 @@ nothing grounded to document there until Phases 4/5/9.
 - [[PRD-Phase-2]] — Phase 2 expanded into full requirements (REQ-2.1–2.14).
 - [[PRD-Phase-3]] — Phase 3 expanded into full requirements (REQ-3.1–3.15).
 - [[PRD-Phase-4]] — Phase 4 expanded into full requirements (REQ-4.1–4.12).
+- [[PRD-Phase-5]] — Phase 5 expanded into full requirements (REQ-5.1–5.12).
 
 ---
 
@@ -78,7 +82,7 @@ nothing grounded to document there until Phases 4/5/9.
 - **Tags** group notes by domain: `#vision`, `#goals`, `#principles`,
   `#architecture`, `#quality-attributes`, `#technology`, `#repository`,
   `#standards`, `#risk`, `#adr`, `#roadmap`, `#sprint0`, `#mvp`, `#plan`,
-  `#prd`, `#phase1`, `#phase4`, `#moc`. Use Obsidian's tag pane to
+  `#prd`, `#phase1`, `#phase4`, `#phase5`, `#ai`, `#moc`. Use Obsidian's tag pane to
   filter by any of these.
 - **Related Notes** sections at the bottom of each note are the
   hand-curated edges of the graph; Obsidian's backlinks panel shows the

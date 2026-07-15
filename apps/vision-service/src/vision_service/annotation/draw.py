@@ -1,8 +1,10 @@
 """REQ-4.5: draws bounding boxes and labels onto a frame given a list
-of `Detection` objects. Implemented and unit-tested against hand-
-constructed `Detection` fixtures this phase, since no real model
-output exists until Phase 5 (PRD-Phase-4 non-goals) — nothing calls
-this with real detections yet.
+of `Detection` objects. Unit-tested (Phase 4) against hand-constructed
+`Detection` fixtures; Phase 5's `detection.pipeline.run_detection_pipeline`
+is the first caller to pass real, tracked detections (REQ-5.7) — the
+label now includes the track ID when one is present (`Detection.trackId`
+is `None` for hand-built fixtures that never went through
+`detection.tracker.Tracker`, so the label format is unchanged for those).
 """
 
 from __future__ import annotations
@@ -34,7 +36,10 @@ def draw_detections(frame: np.ndarray, detections: list[Detection]) -> np.ndarra
         bottom_right = (int(round(box.x + box.width)), int(round(box.y + box.height)))
         cv2.rectangle(annotated, top_left, bottom_right, BOX_COLOR, BOX_THICKNESS)
 
-        label = f"{detection.label} {detection.confidence:.0%}"
+        if detection.trackId is not None:
+            label = f"{detection.label} #{detection.trackId} {detection.confidence:.0%}"
+        else:
+            label = f"{detection.label} {detection.confidence:.0%}"
         label_origin = (top_left[0], max(top_left[1] - 8, 0))
         cv2.putText(
             annotated,

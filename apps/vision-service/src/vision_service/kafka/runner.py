@@ -1,6 +1,7 @@
 """Wires `commands_consumer.handle_command_message` to a real aiokafka
-`AIOKafkaConsumer`/`AIOKafkaProducer`, an `asyncpg` pool, and (Phase 4,
-REQ-4.10) `storage.minio_client`'s `MinioClient`. Started/stopped from
+`AIOKafkaConsumer`/`AIOKafkaProducer`, an `asyncpg` pool, (Phase 4,
+REQ-4.10) `storage.minio_client`'s `MinioClient`, and (Phase 5,
+REQ-5.2) `detection.factory`'s `detector` singleton. Started/stopped from
 `main.py`'s FastAPI lifespan. Kept out of `commands_consumer.py` on
 purpose — that module has no dependency on aiokafka/asyncpg/boto3's
 concrete types, only the narrow `Protocol`s it declares, so it stays
@@ -21,6 +22,7 @@ import asyncio
 import asyncpg
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 
+from vision_service.detection.factory import detector
 from vision_service.events.topics import Topics
 from vision_service.observability import log
 from vision_service.settings import settings
@@ -82,7 +84,7 @@ class CommandsConsumerRunner:
         async for message in self._consumer:
             try:
                 await handle_command_message(
-                    message.value, self._pool, self._producer, minio_client
+                    message.value, self._pool, self._producer, minio_client, detector
                 )
             except Exception as error:
                 # Last-resort guard: handle_command_message already

@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://ai-defense-platform/schemas/processing-completed.schema.json",
   "title": "ProcessingCompletedPayload",
-  "description": "Payload for PROCESSING_COMPLETED (eventVersion 1). Stub-only in Phase 3 (note carried a fixed stub marker, no frameCount/processingDurationMs). Phase 4 (PRD-Phase-4 REQ-4.10) makes note describe real frame iteration and adds the optional fields below with real values; still no detection results (Phase 5). Additive per ADR-005 — no eventVersion bump.",
+  "description": "Payload for PROCESSING_COMPLETED (eventVersion 1). Stub-only in Phase 3 (note carried a fixed stub marker, no frameCount/processingDurationMs). Phase 4 (PRD-Phase-4 REQ-4.10) makes note describe real frame iteration and adds frameCount/processingDurationMs with real values. Phase 5 (docs/mvp-plan/PRD-Phase-5.md REQ-5.9) adds detectionCount/trackCount/annotatedVideoObjectKey once the detection pipeline runs. Additive per ADR-005 — no eventVersion bump.",
   "type": "object",
   "additionalProperties": true,
   "required": ["missionId", "note"],
@@ -13,7 +13,7 @@
     },
     "note": {
       "type": "string",
-      "description": "Human-readable summary, e.g. \"Phase 4: real frame iteration complete, no detection model yet\" (Phase 3's stub note is no longer produced once REQ-4.10 is wired in)."
+      "description": "Human-readable summary, e.g. \"Phase 5: detection and tracking complete\" (earlier phases' stub/frame-only notes are no longer produced once REQ-5.9 is wired in)."
     },
     "frameCount": {
       "type": "integer",
@@ -22,6 +22,18 @@
     "processingDurationMs": {
       "type": "number",
       "description": "Wall-clock milliseconds spent iterating frames (REQ-4.8), excluding the MinIO download."
+    },
+    "detectionCount": {
+      "type": "integer",
+      "description": "Total retained (post-filter, post-tracking) detections published to aidefense.detections for this mission (REQ-5.9)."
+    },
+    "trackCount": {
+      "type": "integer",
+      "description": "Distinct track IDs observed across the mission's frames (REQ-5.5/5.9)."
+    },
+    "annotatedVideoObjectKey": {
+      "type": "string",
+      "description": "MinIO object key of the annotated output video uploaded by REQ-5.7."
     }
   }
 }

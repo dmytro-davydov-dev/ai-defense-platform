@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ai-defense-platform/schemas/detection-published.schema.json",
+  "title": "DetectionPublishedPayload",
+  "description": "Payload for DETECTION_PUBLISHED (eventVersion 1, Phase 5, docs/mvp-plan/PRD-Phase-5.md REQ-5.6). Published once per retained (post-filter, post-tracking) detection to aidefense.detections, mission ID as the partition key. label/confidence come from the ONNX Runtime detector adapter; trackId comes from the in-house IoU tracker (docs/adr/ADR-006-detection-model-and-tracker.md). Only civilian/synthetic classes ever appear here — REQ-5.4's allow-list is enforced before this event is ever constructed.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "missionId",
+    "frameIndex",
+    "frameTimestampMs",
+    "trackId",
+    "label",
+    "confidence",
+    "boundingBox"
+  ],
+  "properties": {
+    "missionId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "frameIndex": {
+      "type": "integer",
+      "description": "0-based index of the frame this detection was observed on, matching Frame.frameIndex."
+    },
+    "frameTimestampMs": {
+      "type": "number",
+      "description": "Milliseconds from the start of the video, derived from frameIndex/fps."
+    },
+    "trackId": {
+      "type": "integer",
+      "description": "Stable ID assigned by the in-house tracker (ADR-006); persists across consecutive frames for the same object."
+    },
+    "label": {
+      "type": "string",
+      "description": "Civilian/synthetic class name, drawn from the REQ-5.4 allow-list only."
+    },
+    "confidence": {
+      "type": "number",
+      "description": "Model confidence in [0, 1], already at or above the configurable REQ-5.3 threshold."
+    },
+    "boundingBox": {
+      "type": "object",
+      "description": "Pixel-space box in the original (pre-resize) frame; (x, y) is the top-left corner.",
+      "required": ["x", "y", "width", "height"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "width": { "type": "number" },
+        "height": { "type": "number" }
+      }
+    }
+  }
+}
