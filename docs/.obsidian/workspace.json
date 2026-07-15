@@ -185,6 +185,7 @@
   },
   "active": "c526e72e4765129c",
   "lastOpenFiles": [
+    "mvp-plan/PRD-Phase-7.md",
     "mvp-plan/PRD-Phase-6.md",
     "ai/Detection_And_Tracking.md",
     "adr/ADR-006-detection-model-and-tracker.md",
@@ -212,7 +213,6 @@
     "MOC.md",
     "mvp-plan/MVP_Implementation_Plan.md",
     "infra",
-    "untitled folder",
-    "roadmap/AI_Defense_Platform_Roadmap.md"
+    "untitled folder"
   ]
 }

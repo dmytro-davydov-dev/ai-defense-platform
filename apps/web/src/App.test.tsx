@@ -3,8 +3,9 @@ import { render, screen } from "@testing-library/react";
 import App from "./App";
 
 describe("App", () => {
-  it("renders the Phase 1 placeholder shell", () => {
+  it("redirects an unauthenticated visitor to the login screen (REQ-6.7)", () => {
     render(<App />);
-    expect(screen.getByText("AI Defense Platform")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "AI Defense Platform" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Log in" })).toBeInTheDocument();
   });
 });

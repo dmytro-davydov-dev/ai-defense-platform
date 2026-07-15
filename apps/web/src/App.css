@@ -1,11 +1,6 @@
-.app-shell {
-  max-width: 40rem;
-  margin: 4rem auto;
-  padding: 0 1.5rem;
-  text-align: center;
-}
-
-.app-shell .status {
-  color: var(--text);
-  font-size: 0.9rem;
-}
+/* Phase 6: superseded by the MUI theme (app/theme.ts) + CssBaseline —
+   no longer imported anywhere. Left as an empty file rather than
+   deleted: this sandbox's mount doesn't allow unlinking existing files
+   (`rm` fails with EPERM, same restriction documented throughout
+   docs/roadmap/Progress.md's Known gaps). Safe to delete for real on a
+   normal dev machine. */

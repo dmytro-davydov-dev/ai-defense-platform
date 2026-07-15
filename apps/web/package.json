@@ -16,10 +16,10 @@
     "codegen:api": "rtk-query-codegen-openapi openapi-codegen.config.ts"
   },
   "dependencies": {
-    "@ai-defense/contracts": "workspace:*",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
     "@mui/icons-material": "^6.3.1",
+    "@mui/lab": "^6.0.0-beta.24",
     "@mui/material": "^6.3.1",
     "@reduxjs/toolkit": "^2.5.0",
     "express": "^4.21.2",

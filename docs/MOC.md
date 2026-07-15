@@ -36,7 +36,7 @@ notes that build on it.
 ## Implementation notes — what Phase 1 actually built
 
 - [[Mission_State_Machine]] — Phase 2's mission lifecycle (draft → queued → processing → completed/failed).
-- [[Web_Shell]] — `apps/web` React+Vite scaffold.
+- [[Web_Shell]] — `apps/web`, from the Phase 1 React+Vite scaffold to Phase 6's real Mission Workspace (auth, missions, upload, real-time, video overlay).
 - [[API_Shell]] — `apps/api` NestJS scaffold.
 - [[Vision_Service_Shell]] — `apps/vision-service` FastAPI+uv scaffold.
 - [[Local_Development_Stack]] — Docker Compose, CI, pre-commit hooks.
@@ -75,6 +75,7 @@ Phase 5.
 - [[PRD-Phase-4]] — Phase 4 expanded into full requirements (REQ-4.1–4.12).
 - [[PRD-Phase-5]] — Phase 5 expanded into full requirements (REQ-5.1–5.12).
 - [[PRD-Phase-6]] — Phase 6 expanded into full requirements (REQ-6.1–6.18).
+- [[PRD-Phase-7]] — Phase 7 (MVP slice) expanded into full requirements (REQ-7.1–7.9).
 
 ---
 
@@ -83,7 +84,7 @@ Phase 5.
 - **Tags** group notes by domain: `#vision`, `#goals`, `#principles`,
   `#architecture`, `#quality-attributes`, `#technology`, `#repository`,
   `#standards`, `#risk`, `#adr`, `#roadmap`, `#sprint0`, `#mvp`, `#plan`,
-  `#prd`, `#phase1`, `#phase4`, `#phase5`, `#phase6`, `#ai`, `#moc`. Use Obsidian's tag pane to
+  `#prd`, `#phase1`, `#phase4`, `#phase5`, `#phase6`, `#phase7`, `#ai`, `#moc`. Use Obsidian's tag pane to
   filter by any of these.
 - **Related Notes** sections at the bottom of each note are the
   hand-curated edges of the graph; Obsidian's backlinks panel shows the

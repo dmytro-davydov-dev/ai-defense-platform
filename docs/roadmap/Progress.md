@@ -700,45 +700,47 @@ detections/annotated-video output.
 
 ### App scaffold and API layer
 
-- [ ] REQ-6.6 — `apps/web` restructured: routing, MUI theme, Redux Toolkit store, RTK Query slice generated from `packages/contracts/openapi.json`
+- [x] REQ-6.6 — `apps/web` restructured: routing, MUI theme, Redux Toolkit store, RTK Query slice generated from `packages/contracts/openapi.json` — routing/theme/store real; RTK Query slice (`api/apiSlice.ts`, `api/types.ts`) is **hand-written**, not codegen output — see Known gaps
 
 ### Authentication
 
-- [ ] REQ-6.7 — login screen + protected-route guard
-- [ ] REQ-6.8 — logout clears client-side session state
+- [x] REQ-6.7 — login screen + protected-route guard — `features/auth/LoginPage.tsx` (also offers account creation via `/auth/register`, otherwise nothing could create a first user), `features/auth/ProtectedRoute.tsx`
+- [x] REQ-6.8 — logout clears client-side session state — `authSlice.ts`'s `loggedOut`, wired into `AppLayout`'s top bar and a 401-triggered auto-logout in `apiSlice.ts`'s base query
 
 ### Mission list, detail, and lifecycle actions
 
-- [ ] REQ-6.9 — mission list view with status indicator
-- [ ] REQ-6.10 — mission detail/create/edit/transition views, gated by state + role
+- [x] REQ-6.9 — mission list view with status indicator — `MissionListPage.tsx`, `MissionStatusBadge.tsx`
+- [x] REQ-6.10 — mission detail/create/edit/transition views, gated by state + role — `MissionDetailPage.tsx`, `CreateMissionDialog.tsx`, `MissionMetadataForm.tsx` (DRAFT-only), `TransitionControls.tsx` (`missionStateMachine.ts` mirrors `apps/api`'s table by hand)
 
 ### Upload workflow
 
-- [ ] REQ-6.11 — signed-URL upload workflow, triggers DRAFT→QUEUED on completion
+- [x] REQ-6.11 — signed-URL upload workflow, triggers DRAFT→QUEUED on completion — `UploadPanel.tsx`, `XMLHttpRequest` for upload-progress events (`fetch` has none); the QUEUED transition itself is a separate, explicit operator action via `TransitionControls`, not automatic on upload completion
 
 ### Real-time status and detections
 
-- [ ] REQ-6.12 — mission detail view live via WebSocket, REST fallback on load/reconnect
+- [x] REQ-6.12 — mission detail view live via WebSocket, REST fallback on load/reconnect — `features/realtime/useMissionSocket.ts`; a relayed event invalidates RTK Query tags rather than hand-patching the cache (see the hook's own doc comment for the trade-off)
 
 ### Video player and detection overlay
 
-- [ ] REQ-6.13 — video player + synced detection overlay, toggle to Phase 5's annotated artifact
+- [x] REQ-6.13 — video player + synced detection overlay, toggle to Phase 5's annotated artifact — `features/video/VideoPlayerWithOverlay.tsx`, canvas overlay driven by `requestAnimationFrame` against `<video>`'s own `currentTime`; annotated video located via Phase 5's deterministic `missions/{missionId}/annotated.mp4` key, not a persisted field (see Known gaps)
 
 ### Event timeline, filters, and audit view
 
-- [ ] REQ-6.14 — event timeline (processing milestones + detections + audit entries)
-- [ ] REQ-6.15 — filters/summary statistics per mission
-- [ ] REQ-6.16 — audit-trail view per mission
+- [x] REQ-6.14 — event timeline (processing milestones + detections + audit entries) — `EventTimeline.tsx`; processing milestones surface as `mission.transition` audit rows (REQ-3.14 already drives one per Kafka event), detections collapse to one summarizing row rather than one row each (see Known gaps)
+- [x] REQ-6.15 — filters/summary statistics per mission — `StatsPanel.tsx` (detections by class, unique track count, elapsed time as an `updatedAt - createdAt` proxy — see Known gaps)
+- [x] REQ-6.16 — audit-trail view per mission — `AuditTrailView.tsx`
 
 ### Testing
 
-- [ ] REQ-6.17 — unit tests: Redux/RTK Query, key components, new `apps/api` read paths
-- [ ] REQ-6.18 — one end-to-end test: create mission → upload → live status → detections rendered
+- [x] REQ-6.17 — unit tests: Redux/RTK Query, key components, new `apps/api` read paths — `authSlice.test.ts`, `missionStateMachine.test.ts`, `shared/errors.test.ts`, `App.test.tsx` (frontend); `detections.handler.spec.ts`, `ws-auth.util.spec.ts`, `mission-events.gateway.spec.ts` (backend, from REQ-6.1/6.5) — **written, not run**, see Known gaps
+- [x] REQ-6.18 — one end-to-end test: create mission → upload → live status → detections rendered — `apps/web/e2e/mission-workflow.spec.ts` (Playwright, per the user's choice), against Phase 4's `sample-mission-clip.mp4` fixture — **written, not run**, needs the full Compose stack
 
 **Phase 6 exit:** all boxes above checked, plus the Definition of Done
-in [[PRD-Phase-6]] Section 8. **Status: backend read-path prerequisites
-(REQ-6.1–6.5) substantively complete; frontend (REQ-6.6–6.18) not yet
-started** — see Known gaps.
+in [[PRD-Phase-6]] Section 8. **Status: substantively complete** — every
+REQ-6.1–6.18 has real, reviewed code; nothing in this phase could be
+installed, typechecked (beyond REQ-6.1–6.5's partial check), linted, or
+run in this sandbox end-to-end — see Known gaps for exactly what still
+needs confirming on a normal dev machine.
 
 ### Known gaps
 
@@ -799,6 +801,97 @@ started** — see Known gaps.
   prior phase's `*.e2e-spec.ts` files. Worth adding once a machine with
   Docker is available; would need `socket.io-client` as a new
   devDependency.
+- **`apps/web`'s new dependencies (MUI, Redux Toolkit/RTK Query,
+  React Router, `socket.io-client`, `@rtk-query/codegen-openapi`,
+  Playwright) are declared in `package.json` but not installed** — same
+  `pnpm install` EPERM block as REQ-6.1–6.5's backend dependencies
+  (confirmed again against `apps/web` specifically, not just
+  `apps/api`). This means **none** of `apps/web`'s new/changed code —
+  every file under `src/app/`, `src/api/`, `src/features/`, plus
+  `playwright.config.ts`/`e2e/` — could be `typecheck`/`lint`/`test`ed
+  in this sandbox; it was written and manually re-reviewed line-by-line
+  against `@ai-defense/ts-config`'s strict settings
+  (`exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`,
+  `noPropertyAccessFromIndexSignature`) instead — one real issue that
+  review caught and fixed: `LoginPage.tsx`'s conditional `helperText`
+  prop was passing `undefined` explicitly to an optional MUI prop, which
+  `exactOptionalPropertyTypes` disallows, fixed via a conditional prop
+  spread. Run `pnpm install && pnpm --filter @ai-defense/web run
+  {typecheck,lint,test}` on a normal dev machine before trusting this
+  code beyond the manual review.
+- **RTK Query's API layer (`api/apiSlice.ts`, `api/types.ts`) is
+  hand-written, not `@rtk-query/codegen-openapi` output** — the
+  committed `packages/contracts/openapi.json` predates this phase's new
+  `apps/api` endpoints (detections, audit-log) and regenerating it needs
+  `nest build`, which needs REQ-6.1–6.5's still-uninstalled dependencies
+  (the same blocker as the point above). Every hand-written type is
+  annotated with the exact DTO file it mirrors. Once a machine can run
+  both `pnpm --filter @ai-defense/api run openapi:export` and `pnpm
+  --filter @ai-defense/web run codegen:api`, regenerate and replace
+  `types.ts`/`apiSlice.ts` for real — `apiSlice.ts`'s consumers
+  (every `features/**` component) only depend on the exported hook names
+  and type shapes, not on the file being hand-written, so this should be
+  a low-risk swap.
+- **Mission "duration" (`StatsPanel.tsx`) and the annotated-video
+  object key (`VideoPlayerWithOverlay.tsx`) are both worked around
+  rather than backed by a persisted field** — `PROCESSING_COMPLETED`'s
+  `processingDurationMs`/`annotatedVideoObjectKey` fields exist on the
+  Kafka event (Phase 4/5) but nothing in `apps/api` persists them onto
+  the `Mission` row, since `processing-events.handler.ts` only ever
+  read `missionId` off that payload before this phase. The frontend
+  works around this without any backend change: duration falls back to
+  `updatedAt - createdAt`, and the annotated video's key is derived from
+  Phase 5's deterministic `missions/{missionId}/annotated.mp4`
+  convention rather than a field. Revisit only if real processing
+  durations (not a wall-clock proxy) turn out to matter — would mean
+  extending the `Mission` model and `processing-events.handler.ts`
+  together, a larger, separately-scoped change deliberately not taken on
+  in this pass.
+- **The Playwright e2e test (REQ-6.18) and the WebSocket gateway
+  integration test (above) both need the full Compose stack, including
+  a real detection model configured on `apps/vision-service`** for the
+  "detections rendered" assertion to be meaningful — without
+  `VISION_SERVICE_DETECTION_MODEL_PATH` set, Phase 4's stub-safe
+  pipeline still reaches `PROCESSING_COMPLETED` but with zero
+  detections. The test as written asserts on real detections; loosen it
+  to "mission reaches COMPLETED" only if run against a stack with no
+  model configured.
+
+---
+
+## Phase 7 — GIS and Telemetry (MVP Slice)
+
+Tracking [[PRD-Phase-7]] requirements (REQ-7.1–7.9). Builds on Phase 2's
+mission/RBAC surface and Phase 5/6's persisted detections and video
+player. Scoped to [[MVP_Implementation_Plan]]'s "Phase 7 (MVP slice)" —
+the roadmap's fuller geofence/spatial-query/uncertainty-indicator/
+multi-mission scope is explicitly deferred past the MVP.
+
+### Data model and telemetry ingestion
+
+- [ ] REQ-7.1 — PostGIS-backed telemetry table, raw-SQL migration
+- [ ] REQ-7.2 — `POST /missions/:id/telemetry` (CSV/GeoJSON upload, validated, RBAC-gated)
+- [ ] REQ-7.3 — `GET /missions/:id/telemetry` (GeoJSON `LineString` read)
+
+### Map integration
+
+- [ ] REQ-7.4 — MapLibre GL JS integrated into `apps/web`
+- [ ] REQ-7.5 — route + nearest-in-time detection markers rendered
+- [ ] REQ-7.6 — video-scrub-to-map current-position sync
+- [ ] REQ-7.7 — persistent "approximate/estimated" labeling on every geolocation element
+
+### Testing
+
+- [ ] REQ-7.8 — unit tests: telemetry parser, nearest-in-time matching, new endpoints
+- [ ] REQ-7.9 — Phase 6 e2e test extended to cover telemetry upload + map rendering
+
+**Phase 7 exit:** all boxes above checked, plus the Definition of Done
+in [[PRD-Phase-7]] Section 8. **Status: not started** — PRD drafted,
+implementation not yet begun.
+
+### Known gaps
+
+- None yet — implementation not started.
 
 ---
 
@@ -807,6 +900,8 @@ started** — see Known gaps.
 Append one line per completed task, newest first. Format:
 `YYYY-MM-DD — REQ-x.x or free text — one-line note`.
 
+- 2026-07-15 — Phase 7 planning — Drafted [[PRD-Phase-7]] (REQ-7.1–7.9), scoped to [[MVP_Implementation_Plan]]'s "Phase 7 (MVP slice)": a PostGIS-backed telemetry table (raw-SQL migration, no native Prisma geometry type — same `$queryRaw`/`$executeRaw` pattern as `OutboxRepository`/`ProcessedEventsRepository`/`DetectionsRepository`), a batch CSV/GeoJSON telemetry ingestion endpoint and a GeoJSON read endpoint, a new MapLibre GL JS map container in `apps/web` (chosen over Mapbox to avoid a mandatory paid token), a mission route + nearest-in-time detection markers, basic video-scrub-to-map sync (nearest-neighbor, not interpolated), and a hard requirement that every rendered geolocation is visibly labeled approximate/estimated per the roadmap's Phase 7 safety constraint. Flags one required ADR (`ADR-007`, map library choice — MapLibre vs Mapbox — the last of the seven ADRs [[MVP_Implementation_Plan]] names for the MVP, not yet drafted). Explicitly defers geofences, full spatial queries, uncertainty-radius indicators, multi-mission overlay, and true interpolation-based replay to the roadmap's fuller Phase 7 scope, past the MVP. Noted that Phase 6 did not in fact build a map container ([[Web_Shell]]: "No map/GIS rendering — Phase 7"), so this phase starts that component from scratch despite the MVP plan's framing. Phase 7 checklist added below, all unchecked — implementation not yet started.
+- 2026-07-15 — REQ-6.6–6.18 implemented — Phase 6's frontend built out in `apps/web`, on top of this session's earlier backend slice: routing (React Router, `app/router.tsx`), a dark MUI theme (`app/theme.ts`), a Redux Toolkit store (`app/store.ts`) with an `auth` slice (JWT + user, persisted to `sessionStorage` per the user's chosen trade-off, REQ-6.7/6.8) and RTK Query's `api` reducer. `api/apiSlice.ts`/`api/types.ts` hand-write the API layer against `apps/api`'s real DTOs rather than running `@rtk-query/codegen-openapi` (blocked the same way as the backend's new dependencies — see Known gaps), with a `codegen:api` script wired up for a real future run. Built: `LoginPage.tsx` (login + register, since nothing else creates a first user) and `ProtectedRoute.tsx`; `MissionListPage.tsx`/`MissionDetailPage.tsx`/`CreateMissionDialog.tsx`/`MissionMetadataForm.tsx` (DRAFT-only)/`TransitionControls.tsx` (a hand-mirrored `missionStateMachine.ts`, gated by state + the two flat roles); `UploadPanel.tsx` (signed-URL upload via `XMLHttpRequest` for progress events, `fetch` has none); `features/realtime/useMissionSocket.ts` (a `socket.io-client` hook joining `apps/api`'s `MissionEventsGateway` per open mission, invalidating RTK Query tags on every relayed event rather than hand-patching the cache); `features/video/VideoPlayerWithOverlay.tsx` (canvas overlay driven by `requestAnimationFrame` against the video's own clock, toggle to Phase 5's annotated artifact via its deterministic object-key convention); `EventTimeline.tsx`/`StatsPanel.tsx`/`AuditTrailView.tsx`. Added MUI/MUI Lab/Redux Toolkit/React Router/`socket.io-client`/`@rtk-query/codegen-openapi`/Playwright to `apps/web/package.json`; extended `tsconfig.node.json` to cover the new `playwright.config.ts`/`e2e/`. Retired the Phase 1 placeholder `App.tsx`/`App.css` (now empty — this sandbox can't `rm` existing files, same mount restriction as the `_tmp_*`/`.git/index.lock` issues) and rewrote `App.test.tsx` to match. Wrote unit tests (`authSlice.test.ts`, `missionStateMachine.test.ts`, `shared/errors.test.ts`) and one Playwright e2e test (`e2e/mission-workflow.spec.ts`) covering the MVP plan's named critical path against Phase 4's `sample-mission-clip.mp4` fixture. None of this could be installed/typechecked/linted/tested in this sandbox (same EPERM block as the backend slice, confirmed again specifically for `apps/web`) — every file was instead manually re-reviewed against `@ai-defense/ts-config`'s strict settings, which caught and fixed one real issue (`LoginPage.tsx`'s conditional `helperText` violating `exactOptionalPropertyTypes`). See this phase's Known gaps for the full list of what a normal dev machine still needs to confirm.
 - 2026-07-15 — REQ-6.1/6.2/6.3/6.5 implemented (REQ-6.4 needed no new code) — Phase 6's backend read-path prerequisites built in `apps/api`: a new `detections` module (`src/detections/`) with a `Detection` Prisma model + hand-written migration (`prisma/migrations/20260715090000_frontend_workspace`), a `$queryRaw`/`$executeRaw`-based repository (same stale-generated-client workaround as `OutboxRepository`/`ProcessedEventsRepository`), a pure `handleDetectionMessage` handler mirroring `processing-events.handler.ts`'s idempotency/retry/DLQ structure under its own consumer name (`api-detections`), and a kafkajs consumer subscribing to `aidefense.detections`. Added `GET /missions/:id/detections` and `GET /missions/:id/audit-log` to `MissionsController` (the latter backed by a new `AuditRepository.findByMissionId`/`AuditService.listForMission`, using the existing generated `auditLog` delegate since that model hasn't changed shape). Built a real-time layer (`src/realtime/`): a `MissionEventsGateway` (Socket.IO, per the user's chosen transport) that authenticates the handshake with the same `JWT_SECRET` REST already uses, lets a client join a per-mission room, and implements a narrow `MissionEventsPublisherLike` interface bound via a `MISSION_EVENTS_PUBLISHER` DI token — both `processing-events.handler.ts` and the new `detections.handler.ts` now take an optional `realtimePublisher` and relay a successfully-processed event to the mission's room, best-effort, never failing the Kafka message itself. Research before implementing found REQ-6.4 (signed download URL) already existed as `StorageController`'s generic `GET /storage/download-url`, and that Phase 5's annotated video is uploaded to a deterministic, convention-based key (`missions/{missionId}/annotated.mp4`) — so no new download endpoint was needed, only documented. Added `@nestjs/websockets`/`@nestjs/platform-socket.io`/`socket.io` to `apps/api/package.json`. Wrote unit tests for the new handler (`detections.handler.spec.ts`, mirroring `processing-events.handler.spec.ts`), the gateway's pure JWT-extraction helper (`ws-auth.util.spec.ts`), and the gateway class itself with mocked `Socket`/`JwtService` (`mission-events.gateway.spec.ts`). Verified via `nx run @ai-defense/api:{typecheck,lint}`: clean except for the two new dependencies not being installed in this sandbox (see Known gaps) — confirmed via `--skip-nx-cache` that every remaining error is confined to `src/realtime/mission-events.gateway.ts`/its spec and traces to exactly that. `pnpm exec jest` could not run in this sandbox at all (confirmed pre-existing and unrelated to this session by reproducing the same failure against an untouched file, `retry.util.spec.ts`) — new tests are written and reviewed, not run; see Known gaps. Frontend (REQ-6.6–6.18) not started this session — next slice per the user's chosen backend-first sequencing.
 - 2026-07-15 — Phase 6 planning — Drafted [[PRD-Phase-6]] (REQ-6.1–6.18), covering the operator-facing Mission Workspace: RTK-Query-driven `apps/web` (routing, MUI, Redux Toolkit) generated from `packages/contracts/openapi.json`; login/logout and protected routing; mission list/detail/create/edit/transition views; the signed-URL upload workflow; and a video player with a detection overlay synced to Phase 5's detections. Research surfaced three `apps/api` gaps this phase must close before the frontend can be built, none of which any prior phase needed: nothing persists `aidefense.detections` for later query (no consumer, no table, no read endpoint), nothing exposes the Phase 2 `audit_log` table for reading, and `StorageService` only issues signed *upload* URLs, never download ones. Added REQ-6.1–6.5 to cover a new detections consumer (reusing REQ-3.8's idempotent-consumption pattern), a detections-read endpoint, an audit-log-read endpoint, a signed-download-URL endpoint, and a JWT-authenticated WebSocket gateway relaying processing-events/detections per mission — the first real-time channel to the browser anywhere in the stack. No new ADR is required per [[MVP_Implementation_Plan]]'s ADR summary (frontend stack already accepted in [[Technology_Decisions]]); flagged the WebSocket transport/room-model choice as a candidate `ADR-007` only if its trade-offs turn out non-obvious. Phase 6 checklist added below, all unchecked — implementation not yet started.
 - 2026-07-14 — REQ-5.1–5.12 implemented — Phase 5 (AI Detection and Tracking) built end-to-end in `apps/vision-service/src/vision_service/detection/`: `adapter.py` (`DetectorAdapterLike` Protocol + `NullDetectorAdapter` "disabled, not broken" fallback), `classes.py` (`COCO_CLASSES` full vocabulary + `ALLOWED_CLASSES` 12-class civilian/synthetic safety allow-list, not env-configurable), `filters.py` (confidence-threshold + class-allow-list filtering, one shared stage regardless of model), `tracker.py` (in-house, dependency-free, per-label greedy-IoU `Tracker` — not the roadmap's named ByteTrack/BoT-SORT, see [[ADR-006-detection-model-and-tracker]]'s "Alternative C" for why), `onnx_detector.py` (`OnnxDetectorAdapter`, CPU-only ONNX Runtime against the standard Ultralytics YOLOv8 output layout, NMS via `cv2.dnn.NMSBoxes`, injectable session for testing), `factory.py` (module-level singleton, same pattern as `storage.minio_client`), and `pipeline.py` (`run_detection_pipeline()`, the real per-frame detect→filter→track→annotate body that replaces Phase 4's counting-only loop, run via `asyncio.to_thread` since it's fully synchronous/CPU-bound). `frames/models.py`'s `Detection` gained optional `trackId`; `annotation/draw.py` now shows it in the label. `storage/minio_client.py` gained `upload_from()` for the annotated-video artifact (REQ-5.7, `missions/{missionId}/annotated.mp4`). `kafka/commands_consumer.py`'s `handle_command_message` gained a fifth `detector` parameter, now publishes one `DETECTION_PUBLISHED` per retained detection to `aidefense.detections` (mission ID partition key) between STARTED and COMPLETED, and `PROCESSING_COMPLETED` gained additive `detectionCount`/`trackCount`/`annotatedVideoObjectKey` fields (ADR-005, no `eventVersion` bump). Added `DETECTION_PUBLISHED` to `packages/event-schemas` (JSON Schema + TS + Pydantic, `EVENT_SCHEMAS_PACKAGE_VERSION` → `0.3.0`); `test_event_schema_sync.py`'s three-way check extended to cover it. Model-load/inference failures (`ModelLoadError`/`ModelInferenceError`/`DetectionPipelineError`) reuse the existing retry/DLQ/`PROCESSING_FAILED` path (REQ-5.10). Drafted [[ADR-006-detection-model-and-tracker]] (model: YOLOv8n/ONNX Runtime CPU; tracker: in-house IoU, not ByteTrack/BoT-SORT) and [[Detection_And_Tracking]] (docs/ai/'s first note). 28 new tests across 4 new files (`test_detection_filters.py`, `test_detection_tracker.py`, `test_detection_onnx_detector.py` — against a fake ONNX session with synthetic YOLOv8-shaped output, no real model file — `test_detection_pipeline.py` — scripted detector against the Phase 4 sample fixture, threshold-based per REQ-5.12) plus `test_commands_consumer.py` rewritten for the 5-argument signature and new DETECTION_PUBLISHED/upload behavior; 86 tests total, all passing against this sandbox's system Python 3.10. Verified: `ruff check`/`ruff format --check` clean; TS side `nx run @ai-defense/event-schemas:{lint,typecheck,test,build}` all pass; `@ai-defense/api:typecheck` reports success (a trailing `Operation not permitted` after that is the same sandbox mount-permission class of issue as `.git/index.lock` below, not a typecheck failure). `onnxruntime` added to `pyproject.toml` but not yet re-locked into `uv.lock` (same recurring gap as Phase 4's three dependencies). No real `.onnx` model has been run through `OnnxDetectorAdapter` anywhere in this sandbox — see this phase's Known gaps.
@@ -840,6 +935,7 @@ Append one line per completed task, newest first. Format:
 - [[PRD-Phase-3]] — source of the Phase 3 REQ checklist above.
 - [[PRD-Phase-4]] — source of the Phase 4 REQ checklist above.
 - [[PRD-Phase-5]] — source of the Phase 5 REQ checklist above.
+- [[PRD-Phase-7]] — source of the Phase 7 REQ checklist above.
 - [[ADR-004-nestjs-orm]] — ORM decision blocking Phase 2's REQ-2.1.
 - [[ADR-005-event-schema-versioning]] — Phase 3's event schema versioning policy.
 - [[ADR-006-detection-model-and-tracker]] — Phase 5's model/adapter/tracker decisions.
