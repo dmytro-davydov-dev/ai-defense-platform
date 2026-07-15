@@ -71,7 +71,9 @@ Responsibilities:
 
 - transactional metadata;
 - mission and job states;
-- geospatial data;
+- geospatial data — real as of Phase 7's `telemetry_points` table
+  (`geography(Point, 4326)`, see [[PRD-Phase-7]] REQ-7.1), not just an
+  aspirational entry in this list;
 - outbox and processed-event records.
 
 ### MinIO/S3

@@ -136,6 +136,37 @@ export interface AuditLogEntry {
 }
 
 /**
+ * apps/api/src/telemetry/dto/telemetry-response.dto.ts — a single
+ * GeoJSON `Feature<LineString>` with parallel per-point property
+ * arrays. `properties.approximate` is always `true` (REQ-7.7): this
+ * platform never returns verified targeting coordinates, only
+ * estimated ones, and that fact is part of the API contract itself,
+ * not just a frontend convention.
+ */
+export interface TelemetryFeature {
+  type: "Feature";
+  geometry: {
+    type: "LineString";
+    coordinates: [number, number][];
+  };
+  properties: {
+    missionId: string;
+    pointCount: number;
+    approximate: true;
+    timestamps: string[];
+    altitudesM: (number | null)[];
+    headingsDeg: (number | null)[];
+    speedsMps: (number | null)[];
+  };
+}
+
+/** apps/api/src/telemetry/dto/telemetry-ingest-response.dto.ts */
+export interface TelemetryIngestResponse {
+  missionId: string;
+  pointCount: number;
+}
+
+/**
  * Mirrors `packages/event-schemas`'s `ProcessingCompletedPayload`/
  * `ProcessingFailedPayload`/`ProcessingStartedPayload` fields the
  * frontend cares about — only what the WebSocket relay (REQ-6.5) and

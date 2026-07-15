@@ -56,6 +56,7 @@ model Mission {
   updatedAt      DateTime      @updatedAt @map("updated_at")
   auditLogs      AuditLog[]
   detections     Detection[]
+  telemetryPoints TelemetryPoint[]
 
   @@map("missions")
 }
@@ -205,6 +206,41 @@ model Detection {
 
   @@index([missionId])
   @@map("detections")
+}
+
+// Phase 7 (docs/mvp-plan/PRD-Phase-7.md REQ-7.1): ordered, timestamped
+// telemetry points per mission, stored as a real PostGIS `geography`
+// column — not a pair of plain float columns — per
+// docs/decisions/Technology_Decisions.md's PostGIS rationale
+// ("geospatial querying") and docs/adr/ADR-007-map-library-choice.md.
+// `position` uses Prisma's `Unsupported(...)` type: Prisma has no
+// native geography/geometry type, so this field is documented here for
+// `prisma migrate diff`/schema-tracking purposes but is excluded from
+// the generated client's `TelemetryPoint` delegate entirely (a
+// documented Prisma limitation, not specific to this sandbox's
+// stale-client issue) — `TelemetryRepository` always reads/writes it
+// via `$queryRaw`/`$executeRaw` using `ST_MakePoint`/`ST_X`/`ST_Y`,
+// exactly like every other raw-SQL-backed model below
+// (Outbox/ProcessedEvent/Detection).
+//
+// NOTE: like those models, this one could not be migrated via `prisma
+// migrate dev`/`prisma generate` in this sandbox (binaries.prisma.sh
+// network-blocked — see docs/roadmap/Progress.md Known gaps). The
+// hand-written SQL is at
+// apps/api/prisma/migrations/20260715150000_gis_telemetry_platform/migration.sql.
+model TelemetryPoint {
+  id           String                    @id @default(uuid())
+  missionId    String                    @map("mission_id")
+  mission      Mission                   @relation(fields: [missionId], references: [id])
+  capturedAt   DateTime                  @map("captured_at")
+  position     Unsupported("geography(Point, 4326)")
+  altitudeM    Float?                    @map("altitude_m")
+  headingDeg   Float?                    @map("heading_deg")
+  speedMps     Float?                    @map("speed_mps")
+  createdAt    DateTime                  @default(now()) @map("created_at")
+
+  @@index([missionId, capturedAt])
+  @@map("telemetry_points")
 }
 
 // REQ-3.8: idempotent consumption on both sides of the broker. One row

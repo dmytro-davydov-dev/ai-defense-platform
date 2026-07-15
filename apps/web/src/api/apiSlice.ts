@@ -12,6 +12,8 @@ import type {
   Mission,
   RegisterRequest,
   SignedUrlResponse,
+  TelemetryFeature,
+  TelemetryIngestResponse,
   TransitionMissionRequest,
   UpdateMissionMetadataRequest,
 } from "./types";
@@ -58,7 +60,7 @@ const baseQueryWithReauth: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQue
 export const apiSlice = createApi({
   reducerPath: "api",
   baseQuery: baseQueryWithReauth,
-  tagTypes: ["Mission", "Detections", "AuditLog"],
+  tagTypes: ["Mission", "Detections", "AuditLog", "Telemetry"],
   endpoints: (builder) => ({
     // --- Auth (REQ-6.7) ---
     login: builder.mutation<AuthResponse, LoginRequest>({
@@ -140,6 +142,25 @@ export const apiSlice = createApi({
     getDownloadUrl: builder.query<SignedUrlResponse, string>({
       query: (objectKey) => `/storage/download-url?objectKey=${encodeURIComponent(objectKey)}`,
     }),
+
+    // --- Telemetry (REQ-7.2/7.3) ---
+    getTelemetry: builder.query<TelemetryFeature, string>({
+      query: (missionId) => `/missions/${missionId}/telemetry`,
+      providesTags: (_result, _error, missionId) => [{ type: "Telemetry", id: missionId }],
+    }),
+    uploadTelemetry: builder.mutation<TelemetryIngestResponse, { id: string; file: File }>({
+      // `fetchBaseQuery` passes a `FormData` body through untouched (no
+      // JSON.stringify, no Content-Type override) — the browser sets the
+      // multipart boundary header itself, matching what
+      // `MissionsController.uploadTelemetry`'s `FileInterceptor("file")`
+      // expects (REQ-7.2).
+      query: ({ id, file }) => {
+        const formData = new FormData();
+        formData.append("file", file);
+        return { url: `/missions/${id}/telemetry`, method: "POST", body: formData };
+      },
+      invalidatesTags: (_result, _error, { id }) => [{ type: "Telemetry", id }],
+    }),
   }),
 });
 
@@ -155,4 +176,6 @@ export const {
   useListDetectionsQuery,
   useListAuditLogQuery,
   useLazyGetDownloadUrlQuery,
+  useGetTelemetryQuery,
+  useUploadTelemetryMutation,
 } = apiSlice;

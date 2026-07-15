@@ -3,7 +3,7 @@ import type { ChipProps } from "@mui/material/Chip";
 import type { MissionStatus } from "../../api/types";
 import { MISSION_STATUS } from "../../api/types";
 
-const STATUS_COLOR: Record<MissionStatus, ChipProps["color"]> = {
+const STATUS_COLOR: Record<MissionStatus, NonNullable<ChipProps["color"]>> = {
   [MISSION_STATUS.DRAFT]: "default",
   [MISSION_STATUS.QUEUED]: "info",
   [MISSION_STATUS.PROCESSING]: "warning",

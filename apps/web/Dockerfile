@@ -1,6 +1,12 @@
 # Phase 1 shell image — builds and serves the static SPA with /health
 # and /ready endpoints (server.js). See docs/mvp-plan/PRD-Phase-1.md.
-FROM node:20-slim AS build
+# Node 22+ to match the root package.json's engines field and the rest
+# of the monorepo's images (apps/api, apps/outbox-publisher) — pnpm
+# enforces this via ERR_PNPM_UNSUPPORTED_ENGINE on node:20, which is
+# exactly how this was caught (this Dockerfile predates Phase 6's
+# engines bump and was missed until a real `docker compose up --build`
+# ran outside the sandbox — see docs/roadmap/Progress.md Known gaps).
+FROM node:22-slim AS build
 WORKDIR /workspace
 
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* .npmrc ./
@@ -12,7 +18,7 @@ RUN pnpm install --frozen-lockfile --filter @ai-defense/web...
 WORKDIR /workspace/apps/web
 RUN pnpm build
 
-FROM node:20-slim AS runtime
+FROM node:22-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=8080

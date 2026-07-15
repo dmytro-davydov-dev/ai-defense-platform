@@ -18,10 +18,13 @@ const SAMPLE_VIDEO_PATH = path.resolve(
 );
 
 /**
- * REQ-6.18: the MVP plan's named critical path — create mission ->
- * upload -> observe live status -> see detections rendered. Registers a
- * fresh operator account per run (unique email) rather than depending on
- * seeded credentials, since nothing in this repo currently seeds one.
+ * REQ-6.18 (extended by REQ-7.9): the MVP plan's named critical path —
+ * create mission -> upload -> observe live status -> see detections
+ * rendered — now also covers uploading a telemetry file and confirming
+ * the map container renders the route with its mandatory
+ * approximate-position labeling. Registers a fresh operator account per
+ * run (unique email) rather than depending on seeded credentials, since
+ * nothing in this repo currently seeds one.
  *
  * Requires the full Compose stack up (apps/web, apps/api, Postgres,
  * Redpanda, MinIO, apps/vision-service, apps/outbox-publisher) with a
@@ -29,9 +32,11 @@ const SAMPLE_VIDEO_PATH = path.resolve(
  * still fires (Phase 4's stub-safe pipeline) but with zero detections,
  * and the final assertion will need loosening to "mission reaches
  * COMPLETED" only. Not run in this sandbox (no docker) — see
- * docs/roadmap/Progress.md's Phase 6 Known gaps.
+ * docs/roadmap/Progress.md's Known gaps.
  */
-test("create mission, upload, watch it process, see detections", async ({ page }) => {
+test("create mission, upload, watch it process, see detections and telemetry route", async ({
+  page,
+}) => {
   const email = `e2e-${Date.now()}@ai-defense.example`;
 
   await page.goto("/login");
@@ -65,4 +70,30 @@ test("create mission, upload, watch it process, see detections", async ({ page }
   await expect(page.getByText(/^Detections$/)).toBeVisible();
   await page.getByRole("tab", { name: "Event timeline" }).click();
   await expect(page.getByText("Detections recorded")).toBeVisible();
+
+  // REQ-7.9: upload a minimal, inline telemetry fixture (no repo fixture
+  // file needed — Playwright can hand a file chooser an in-memory
+  // buffer) and confirm the map container renders the route with its
+  // mandatory approximate-position labeling (REQ-7.7).
+  await page.getByRole("tab", { name: "Overview" }).click();
+  await page.getByRole("button", { name: "Upload CSV or GeoJSON" }).click();
+  const telemetryChooser = await page.waitForEvent("filechooser");
+  await telemetryChooser.setFiles({
+    name: "telemetry.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(
+      [
+        "timestamp,lat,lon",
+        "2026-07-15T10:00:00.000Z,37.7749,-122.4194",
+        "2026-07-15T10:00:01.000Z,37.7750,-122.4193",
+        "2026-07-15T10:00:02.000Z,37.7751,-122.4192",
+      ].join("\n"),
+    ),
+  });
+  await expect(page.getByText(/Ingested 3 telemetry points/)).toBeVisible();
+  await expect(
+    page.getByText(
+      "Approximate position — estimated from telemetry, never verified targeting data",
+    ),
+  ).toBeVisible();
 });

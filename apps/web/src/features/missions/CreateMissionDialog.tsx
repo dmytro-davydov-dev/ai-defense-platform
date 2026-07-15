@@ -31,7 +31,7 @@ export function CreateMissionDialog({ open, onClose }: CreateMissionDialogProps)
       title,
       ...(description ? { description } : {}),
     });
-    if ("data" in result) {
+    if (result.data) {
       setTitle("");
       setDescription("");
       onClose();

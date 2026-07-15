@@ -869,29 +869,163 @@ multi-mission scope is explicitly deferred past the MVP.
 
 ### Data model and telemetry ingestion
 
-- [ ] REQ-7.1 — PostGIS-backed telemetry table, raw-SQL migration
-- [ ] REQ-7.2 — `POST /missions/:id/telemetry` (CSV/GeoJSON upload, validated, RBAC-gated)
-- [ ] REQ-7.3 — `GET /missions/:id/telemetry` (GeoJSON `LineString` read)
+- [x] REQ-7.1 — PostGIS-backed telemetry table, raw-SQL migration — `telemetry_points` (`geography(Point, 4326)` via `Unsupported(...)` in schema.prisma), `apps/api/prisma/migrations/20260715150000_gis_telemetry_platform/`
+- [x] REQ-7.2 — `POST /missions/:id/telemetry` (CSV/GeoJSON upload, validated, RBAC-gated) — `MissionsController.uploadTelemetry`, `FileInterceptor("file")`, format auto-detected by `telemetry-parser.ts`
+- [x] REQ-7.3 — `GET /missions/:id/telemetry` (GeoJSON `LineString` read) — `MissionsController.getTelemetry`, `TelemetryResponseDto` (`properties.approximate: true` baked into the contract, see REQ-7.7)
 
 ### Map integration
 
-- [ ] REQ-7.4 — MapLibre GL JS integrated into `apps/web`
-- [ ] REQ-7.5 — route + nearest-in-time detection markers rendered
-- [ ] REQ-7.6 — video-scrub-to-map current-position sync
-- [ ] REQ-7.7 — persistent "approximate/estimated" labeling on every geolocation element
+- [x] REQ-7.4 — MapLibre GL JS integrated into `apps/web` — `maplibre-gl` added to `apps/web/package.json`; see [[ADR-007-map-library-choice]]
+- [x] REQ-7.5 — route + nearest-in-time detection markers rendered — `MissionMap.tsx`, `nearestInTime.ts`
+- [x] REQ-7.6 — video-scrub-to-map current-position sync — `VideoPlayerWithOverlay`'s new `onTimeUpdate` prop lifted into `MissionDetailPage`, fed to `MissionMap`
+- [x] REQ-7.7 — persistent "approximate/estimated" labeling on every geolocation element — API contract (`TelemetryResponseDto.properties.approximate`) and UI (`MissionMap`'s persistent Chip), not just a doc note
 
 ### Testing
 
-- [ ] REQ-7.8 — unit tests: telemetry parser, nearest-in-time matching, new endpoints
-- [ ] REQ-7.9 — Phase 6 e2e test extended to cover telemetry upload + map rendering
+- [x] REQ-7.8 — unit tests: telemetry parser, nearest-in-time matching, service — `telemetry-parser.spec.ts` (CSV+GeoJSON, valid/malformed/out-of-order), `telemetry.service.spec.ts` (mocked repository), `nearestInTime.test.ts` — **backend tests written and passing arguments verified via manual review + `tsc`/`eslint`, not run** (see Known gaps); no dedicated `MissionsController` spec exists for the two new endpoints, matching this repo's existing convention of not unit-testing the controller layer directly (no `missions.controller.spec.ts` exists for any prior phase's mission endpoints either)
+- [x] REQ-7.9 — Phase 6 e2e test extended to cover telemetry upload + map rendering — `e2e/mission-workflow.spec.ts`, inline in-memory CSV fixture (no new repo fixture file needed), asserts the ingest confirmation and the persistent approximate-position label — **written, not run**, same as REQ-6.18
 
 **Phase 7 exit:** all boxes above checked, plus the Definition of Done
-in [[PRD-Phase-7]] Section 8. **Status: not started** — PRD drafted,
-implementation not yet begun.
+in [[PRD-Phase-7]] Section 8. **Status: substantively complete** — every
+REQ-7.1–7.9 has real, reviewed code; nothing could be installed,
+compiled, or run end-to-end in this sandbox — see Known gaps for what a
+normal dev machine still needs to confirm.
 
 ### Known gaps
 
-- None yet — implementation not started.
+- **`apps/api`'s new telemetry code was verified via `tsc --noEmit` and
+  `eslint`, both clean** (zero errors attributable to this phase's own
+  files; the only remaining `tsc`/`eslint` errors anywhere in `apps/api`
+  are the pre-existing, already-documented Phase 6 gap —
+  `@nestjs/websockets`/`socket.io` not installed). **`jest` could not
+  run at all** — confirmed the same pre-existing, sandbox-wide
+  `ts-jest` resolution failure documented in Phase 6's Known gaps
+  (`Module ts-jest in the transform option was not found`, despite
+  `require.resolve("ts-jest")` succeeding from plain Node), reproduced
+  again this session against an untouched file
+  (`retry.util.spec.ts`) to confirm it's not something this phase
+  introduced. `telemetry-parser.spec.ts`/`telemetry.service.spec.ts`
+  are written and manually traced against the implementation, not run.
+- **`nest build` fails on a sandbox-only mount-permission error**
+  (`EPERM: operation not permitted, unlink
+  '.../apps/api/dist/tsconfig.tsbuildinfo'`) — the same class of stale-
+  `dist/`-can't-be-unlinked issue documented in every prior phase's
+  Known gaps (Phase 4/5/6), not something this phase's changes caused.
+- **`apps/web`'s new telemetry/map code could not be typechecked,
+  linted cleanly, or run at all** — confirmed this sandbox still can't
+  run `pnpm install` for `apps/web` (same recurring `_tmp_*`
+  EPERM-on-unlink block as every prior phase, re-confirmed this session
+  with a fresh `pnpm install` attempt at the repo root, which failed
+  identically). This means `maplibre-gl`, MUI, Redux Toolkit, React
+  Router, and Playwright are all still declared in `package.json` but
+  not installed — `tsc -b`/`eslint` against `apps/web` report the
+  identical "Cannot find module" cascade for every file that imports
+  any of them, including files this phase never touched (confirmed
+  pre-existing, not introduced here). The two files with **zero**
+  external dependencies — `nearestInTime.ts`/`nearestInTime.test.ts` —
+  lint and typecheck completely clean, which is the strongest signal
+  available in this sandbox that the new code is sound. `MissionMap.tsx`
+  and `TelemetryUploadPanel.tsx` were instead manually re-reviewed
+  against `@ai-defense/ts-config`'s strict settings line by line (same
+  process Phase 6 used for its own uninstallable dependencies).
+- **`vitest` cannot run at all in this sandbox**, independent of the
+  `pnpm install` gap above — a new, different failure from Phase 6's:
+  `Cannot find module '@rollup/rollup-linux-arm64-gnu'` (a known
+  upstream npm/rollup optional-dependency bug on some architectures,
+  unrelated to this phase's code). Confirmed by running the
+  dependency-free `nearestInTime.test.ts` in isolation and hitting the
+  same startup error before any test file is even loaded.
+- **The nearest-in-time video/telemetry alignment is an explicit,
+  documented assumption, not a guarantee** — `nearestInTime.ts`'s header
+  comment spells this out: matching a detection's `frameTimestampMs` (or
+  the video's own playback position) against telemetry's
+  elapsed-since-first-point time only works if a mission's video
+  recording and its telemetry log started at the same moment. Nothing
+  in this phase's data model ties the two together with a shared
+  "recording start" field. If they didn't start together, every
+  position this phase renders is offset by that difference — this is
+  exactly why REQ-7.7's "approximate" labeling is enforced as a hard
+  requirement (both in the API contract and the UI), not left as a
+  nicety.
+- **MapLibre's OpenStreetMap raster tile source requires outbound
+  internet access to render tile *images*** — documented and accepted
+  in [[ADR-007-map-library-choice]] as a real, known gap against this
+  platform's otherwise fully local Compose stack; the route/marker data
+  layers do not depend on it and remain visible either way.
+- `apps/api/prisma/schema.prisma`'s new `TelemetryPoint` model has the
+  same `prisma migrate dev`/`prisma generate`-blocked status as every
+  model added since Phase 3 — `TelemetryRepository` uses `$queryRaw`/
+  `$executeRaw` (with `ST_MakePoint`/`ST_X`/`ST_Y`) against the
+  hand-written `20260715150000_gis_telemetry_platform` migration, and
+  `position`'s `Unsupported(...)` type means no generated delegate for
+  this table will ever exist regardless of `prisma generate`'s status —
+  that part is permanent, not sandbox-specific. Verify the migration
+  with `prisma migrate diff`/`prisma migrate dev` and confirm a real
+  PostGIS `ST_MakePoint`/`ST_X`/`ST_Y` round-trip on a machine with
+  Docker and network access to `binaries.prisma.sh`.
+- No integration test yet exercises the telemetry endpoints or the
+  PostGIS round-trip against a real Postgres/PostGIS instance — same
+  no-docker limitation as every prior phase's `*.e2e-spec.ts` files.
+  Worth adding once a machine with Docker is available.
+
+---
+
+## Phase 8 — Data, Training and Model Lifecycle
+
+Tracking [[PRD-Phase-8]] requirements (REQ-8.1–8.17). Unlike Phases
+1–7, this is **post-MVP** — [[MVP_Implementation_Plan]] scopes only
+Phases 1–7 into the MVP and explicitly defers Phase 8. Builds on
+Phase 5's detector adapter contract and safety boundary
+([[ADR-006-detection-model-and-tracker]], `detection/classes.py`'s
+`ALLOWED_CLASSES`) and Phase 2's RBAC/audit patterns.
+
+### Dataset registry and provenance
+
+- [ ] REQ-8.1 — dataset registry (Postgres metadata, MinIO-stored content)
+- [ ] REQ-8.2 — mandatory provenance/license metadata gate before training use
+- [ ] REQ-8.3 — deterministic, seeded train/validation/test split generation
+
+### Annotation workflow
+
+- [ ] REQ-8.4 — annotation import/export utility (standard format ↔ `Detection`/`BoundingBox`)
+- [ ] REQ-8.5 — annotation validation against `ALLOWED_CLASSES` and bounding-box bounds
+
+### Experiment tracking and training pipeline
+
+- [ ] REQ-8.6 — YOLO training pipeline, ONNX export matching ADR-006's exact convention
+- [ ] REQ-8.7 — experiment tracker records hyperparameters, dataset/split version, metrics, git commit
+- [ ] REQ-8.8 — per-class evaluation report, threshold-based checks
+
+### Model registry, promotion, and rollback
+
+- [ ] REQ-8.9 — model registry with lineage (training run, dataset version, evaluation report) and lifecycle stage
+- [ ] REQ-8.10 — promotion updates the active model reference with no code change
+- [ ] REQ-8.11 — rollback to any prior production version, same no-code-change property
+- [ ] REQ-8.12 — promotion/rollback produce an append-only audit record
+
+### Bias and failure analysis
+
+- [ ] REQ-8.13 — flagged low-performing-class section in the evaluation report
+- [ ] REQ-8.14 — documented, human-written failure-case notes
+
+### Testing
+
+- [ ] REQ-8.15 — unit tests: dataset-registry validation, split determinism, annotation conversion/validation
+- [ ] REQ-8.16 — fixture-based training pipeline test; exported model loads through unmodified `OnnxDetectorAdapter`
+- [ ] REQ-8.17 — promotion/rollback tests: audit record + resolved model path change
+
+**Phase 8 exit:** all boxes above checked, plus the Definition of Done
+in [[PRD-Phase-8]] Section 8. **Status: not started** — PRD drafted
+only.
+
+### Known gaps
+
+- `ADR-008` (experiment tracking/dataset versioning tooling) and
+  `ADR-009` (annotation format) are both required before their
+  respective implementation steps (per [[PRD-Phase-8]] Section 7) and
+  are not yet drafted.
+- `datasets/` and `models/` top-level folders named in
+  [[Repository_Structure]] do not exist in the repository yet.
 
 ---
 
@@ -900,6 +1034,8 @@ implementation not yet begun.
 Append one line per completed task, newest first. Format:
 `YYYY-MM-DD — REQ-x.x or free text — one-line note`.
 
+- 2026-07-15 — Phase 8 planning — Drafted [[PRD-Phase-8]] (REQ-8.1–8.17), scoped against the roadmap's full "Phase 8 — Data, Training and Model Lifecycle" entry — the first phase explicitly outside MVP scope ([[MVP_Implementation_Plan]] defers Phase 8; [[PRD-Phase-7]] was the last MVP-scoped phase). Covers a Postgres-backed dataset registry with mandatory provenance/license metadata, deterministic seeded train/validation/test splits, an annotation import/export utility built on a standard format (not a custom UI), a YOLO training pipeline exporting ONNX in the exact shape [[ADR-006-detection-model-and-tracker]] already committed `OnnxDetectorAdapter` to, experiment tracking (MLflow or equivalent), per-class evaluation reports with a flagged low-performing-class section and human-written failure notes (operationalizing [[Initial_Risk_Register]]'s "model accuracy mistaken for certainty" mitigation), and a model registry with audited promotion/rollback requiring no code change to `vision-service`. Explicitly does not expand `detection/classes.py`'s `ALLOWED_CLASSES` safety allow-list. Flags two required ADRs, next numbers `ADR-008` (experiment tracking/dataset versioning tooling) and `ADR-009` (annotation format), neither yet drafted. Phase 8 checklist added below, all unchecked — implementation not yet started.
+- 2026-07-15 — REQ-7.1–7.9 implemented — Phase 7 (GIS and Telemetry, MVP slice) built end-to-end. Backend: `apps/api/src/telemetry/` — `telemetry-parser.ts` (CSV and GeoJSON `FeatureCollection<Point>` auto-detected by content, rejects malformed rows/out-of-order timestamps), `telemetry.repository.ts` (`$queryRaw`/`$executeRaw` against a real PostGIS `geography(Point, 4326)` column via `ST_MakePoint`/`ST_X`/`ST_Y`, batched in one `$transaction`), `telemetry.service.ts`, `telemetry.module.ts`; `TelemetryPoint` added to `schema.prisma` using Prisma's `Unsupported(...)` type (no generated delegate exists for this table, by design, not sandbox limitation) plus the hand-written `20260715150000_gis_telemetry_platform` migration (GIST index included for the roadmap's deferred spatial-query scope). `MissionsController` gained `POST`/`GET /missions/:id/telemetry` (multipart upload via `FileInterceptor`, using a narrow hand-rolled file type instead of adding an unverifiable `@types/multer` dependency). `TelemetryResponseDto` returns a GeoJSON `Feature<LineString>` with `properties.approximate: true` baked into the contract (REQ-7.7 as an API guarantee, not just a UI convention). Drafted and accepted [[ADR-007-map-library-choice]] first (MapLibre GL JS over Mapbox, token-free OSM raster tiles), per the PRD's Section 7 requirement. Frontend: `maplibre-gl` added to `apps/web/package.json`; `features/telemetry/nearestInTime.ts` (pure nearest-neighbor matching, with its video/telemetry start-alignment assumption documented explicitly — the one real modeling caveat this phase introduces); `MissionMap.tsx` (direct MapLibre integration, no wrapper library, matching `VideoPlayerWithOverlay`'s existing style — route line, detection markers, current-position marker, persistent "Approximate position" chip); `TelemetryUploadPanel.tsx`; `VideoPlayerWithOverlay` gained an `onTimeUpdate` prop lifting playback position up to `MissionDetailPage`, which now also renders `MissionMap`/`TelemetryUploadPanel`. Extended `e2e/mission-workflow.spec.ts` (REQ-7.9) with an inline in-memory CSV fixture rather than a new repo file. Verified in this sandbox: `apps/api`'s new/changed files are clean under `tsc --noEmit` and `eslint` (zero errors attributable to this phase — the only remaining errors anywhere in `apps/api` are Phase 6's pre-existing, already-documented `@nestjs/websockets`/`socket.io` gap); `jest` still can't run at all here (same pre-existing sandbox-wide `ts-jest` resolution failure, reproduced against an untouched file to confirm); `nest build` hits the same recurring stale-`dist/`-EPERM issue as every prior phase. `apps/web`'s dependency-free new file (`nearestInTime.ts`/`.test.ts`) lints and typechecks clean; everything depending on `maplibre-gl`/MUI/RTK (still uninstallable here, same `pnpm install` EPERM block as Phase 6, re-confirmed with a fresh attempt) was instead manually re-reviewed line-by-line against `@ai-defense/ts-config`'s strict settings; `vitest` itself can't even start in this sandbox (`Cannot find module '@rollup/rollup-linux-arm64-gnu'`, a separate, known npm/rollup optional-dependency bug, unrelated to this phase's code). Updated [[Web_Shell]], [[Architecture_Overview]]'s PostGIS section (geospatial data is now real, not aspirational), and [[Technology_Decisions]] (MapLibre GL JS entry).
 - 2026-07-15 — Phase 7 planning — Drafted [[PRD-Phase-7]] (REQ-7.1–7.9), scoped to [[MVP_Implementation_Plan]]'s "Phase 7 (MVP slice)": a PostGIS-backed telemetry table (raw-SQL migration, no native Prisma geometry type — same `$queryRaw`/`$executeRaw` pattern as `OutboxRepository`/`ProcessedEventsRepository`/`DetectionsRepository`), a batch CSV/GeoJSON telemetry ingestion endpoint and a GeoJSON read endpoint, a new MapLibre GL JS map container in `apps/web` (chosen over Mapbox to avoid a mandatory paid token), a mission route + nearest-in-time detection markers, basic video-scrub-to-map sync (nearest-neighbor, not interpolated), and a hard requirement that every rendered geolocation is visibly labeled approximate/estimated per the roadmap's Phase 7 safety constraint. Flags one required ADR (`ADR-007`, map library choice — MapLibre vs Mapbox — the last of the seven ADRs [[MVP_Implementation_Plan]] names for the MVP, not yet drafted). Explicitly defers geofences, full spatial queries, uncertainty-radius indicators, multi-mission overlay, and true interpolation-based replay to the roadmap's fuller Phase 7 scope, past the MVP. Noted that Phase 6 did not in fact build a map container ([[Web_Shell]]: "No map/GIS rendering — Phase 7"), so this phase starts that component from scratch despite the MVP plan's framing. Phase 7 checklist added below, all unchecked — implementation not yet started.
 - 2026-07-15 — REQ-6.6–6.18 implemented — Phase 6's frontend built out in `apps/web`, on top of this session's earlier backend slice: routing (React Router, `app/router.tsx`), a dark MUI theme (`app/theme.ts`), a Redux Toolkit store (`app/store.ts`) with an `auth` slice (JWT + user, persisted to `sessionStorage` per the user's chosen trade-off, REQ-6.7/6.8) and RTK Query's `api` reducer. `api/apiSlice.ts`/`api/types.ts` hand-write the API layer against `apps/api`'s real DTOs rather than running `@rtk-query/codegen-openapi` (blocked the same way as the backend's new dependencies — see Known gaps), with a `codegen:api` script wired up for a real future run. Built: `LoginPage.tsx` (login + register, since nothing else creates a first user) and `ProtectedRoute.tsx`; `MissionListPage.tsx`/`MissionDetailPage.tsx`/`CreateMissionDialog.tsx`/`MissionMetadataForm.tsx` (DRAFT-only)/`TransitionControls.tsx` (a hand-mirrored `missionStateMachine.ts`, gated by state + the two flat roles); `UploadPanel.tsx` (signed-URL upload via `XMLHttpRequest` for progress events, `fetch` has none); `features/realtime/useMissionSocket.ts` (a `socket.io-client` hook joining `apps/api`'s `MissionEventsGateway` per open mission, invalidating RTK Query tags on every relayed event rather than hand-patching the cache); `features/video/VideoPlayerWithOverlay.tsx` (canvas overlay driven by `requestAnimationFrame` against the video's own clock, toggle to Phase 5's annotated artifact via its deterministic object-key convention); `EventTimeline.tsx`/`StatsPanel.tsx`/`AuditTrailView.tsx`. Added MUI/MUI Lab/Redux Toolkit/React Router/`socket.io-client`/`@rtk-query/codegen-openapi`/Playwright to `apps/web/package.json`; extended `tsconfig.node.json` to cover the new `playwright.config.ts`/`e2e/`. Retired the Phase 1 placeholder `App.tsx`/`App.css` (now empty — this sandbox can't `rm` existing files, same mount restriction as the `_tmp_*`/`.git/index.lock` issues) and rewrote `App.test.tsx` to match. Wrote unit tests (`authSlice.test.ts`, `missionStateMachine.test.ts`, `shared/errors.test.ts`) and one Playwright e2e test (`e2e/mission-workflow.spec.ts`) covering the MVP plan's named critical path against Phase 4's `sample-mission-clip.mp4` fixture. None of this could be installed/typechecked/linted/tested in this sandbox (same EPERM block as the backend slice, confirmed again specifically for `apps/web`) — every file was instead manually re-reviewed against `@ai-defense/ts-config`'s strict settings, which caught and fixed one real issue (`LoginPage.tsx`'s conditional `helperText` violating `exactOptionalPropertyTypes`). See this phase's Known gaps for the full list of what a normal dev machine still needs to confirm.
 - 2026-07-15 — REQ-6.1/6.2/6.3/6.5 implemented (REQ-6.4 needed no new code) — Phase 6's backend read-path prerequisites built in `apps/api`: a new `detections` module (`src/detections/`) with a `Detection` Prisma model + hand-written migration (`prisma/migrations/20260715090000_frontend_workspace`), a `$queryRaw`/`$executeRaw`-based repository (same stale-generated-client workaround as `OutboxRepository`/`ProcessedEventsRepository`), a pure `handleDetectionMessage` handler mirroring `processing-events.handler.ts`'s idempotency/retry/DLQ structure under its own consumer name (`api-detections`), and a kafkajs consumer subscribing to `aidefense.detections`. Added `GET /missions/:id/detections` and `GET /missions/:id/audit-log` to `MissionsController` (the latter backed by a new `AuditRepository.findByMissionId`/`AuditService.listForMission`, using the existing generated `auditLog` delegate since that model hasn't changed shape). Built a real-time layer (`src/realtime/`): a `MissionEventsGateway` (Socket.IO, per the user's chosen transport) that authenticates the handshake with the same `JWT_SECRET` REST already uses, lets a client join a per-mission room, and implements a narrow `MissionEventsPublisherLike` interface bound via a `MISSION_EVENTS_PUBLISHER` DI token — both `processing-events.handler.ts` and the new `detections.handler.ts` now take an optional `realtimePublisher` and relay a successfully-processed event to the mission's room, best-effort, never failing the Kafka message itself. Research before implementing found REQ-6.4 (signed download URL) already existed as `StorageController`'s generic `GET /storage/download-url`, and that Phase 5's annotated video is uploaded to a deterministic, convention-based key (`missions/{missionId}/annotated.mp4`) — so no new download endpoint was needed, only documented. Added `@nestjs/websockets`/`@nestjs/platform-socket.io`/`socket.io` to `apps/api/package.json`. Wrote unit tests for the new handler (`detections.handler.spec.ts`, mirroring `processing-events.handler.spec.ts`), the gateway's pure JWT-extraction helper (`ws-auth.util.spec.ts`), and the gateway class itself with mocked `Socket`/`JwtService` (`mission-events.gateway.spec.ts`). Verified via `nx run @ai-defense/api:{typecheck,lint}`: clean except for the two new dependencies not being installed in this sandbox (see Known gaps) — confirmed via `--skip-nx-cache` that every remaining error is confined to `src/realtime/mission-events.gateway.ts`/its spec and traces to exactly that. `pnpm exec jest` could not run in this sandbox at all (confirmed pre-existing and unrelated to this session by reproducing the same failure against an untouched file, `retry.util.spec.ts`) — new tests are written and reviewed, not run; see Known gaps. Frontend (REQ-6.6–6.18) not started this session — next slice per the user's chosen backend-first sequencing.
@@ -936,9 +1072,11 @@ Append one line per completed task, newest first. Format:
 - [[PRD-Phase-4]] — source of the Phase 4 REQ checklist above.
 - [[PRD-Phase-5]] — source of the Phase 5 REQ checklist above.
 - [[PRD-Phase-7]] — source of the Phase 7 REQ checklist above.
+- [[PRD-Phase-8]] — source of the Phase 8 REQ checklist above (post-MVP).
 - [[ADR-004-nestjs-orm]] — ORM decision blocking Phase 2's REQ-2.1.
 - [[ADR-005-event-schema-versioning]] — Phase 3's event schema versioning policy.
 - [[ADR-006-detection-model-and-tracker]] — Phase 5's model/adapter/tracker decisions.
+- [[ADR-007-map-library-choice]] — Phase 7's map library/basemap decision.
 - [[Local_Kafka_Redpanda]] — Phase 3's topic taxonomy, outbox, and consumers in detail.
 - [[Vision_Service_Shell]] — Phase 3-5's vision-service consumer/detection pipeline.
 - [[Detection_And_Tracking]] — Phase 5's detect/filter/track/publish pipeline summary.

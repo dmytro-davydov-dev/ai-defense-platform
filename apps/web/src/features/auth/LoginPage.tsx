@@ -42,7 +42,7 @@ export function LoginPage() {
         ? await login({ email, password })
         : await register({ email, password, displayName });
 
-    if ("data" in result) {
+    if (result.data) {
       dispatch(credentialsSet({ token: result.data.accessToken, user: result.data.user }));
       const state = location.state as LocationState | null;
       navigate(state?.from?.pathname ?? "/missions", { replace: true });

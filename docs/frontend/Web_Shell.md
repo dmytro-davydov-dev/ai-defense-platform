@@ -1,7 +1,7 @@
 ---
 title: Web Shell
 type: frontend
-tags: [frontend, phase1, phase6]
+tags: [frontend, phase1, phase6, phase7]
 status: accepted
 ---
 
@@ -10,7 +10,9 @@ status: accepted
 `apps/web` — scaffolded as a Phase 1 placeholder
 (`docs/mvp-plan/PRD-Phase-1.md`, REQ-1.3), built out into the real
 operator Mission Workspace in Phase 6
-(`docs/mvp-plan/PRD-Phase-6.md`, REQ-6.6–6.18).
+(`docs/mvp-plan/PRD-Phase-6.md`, REQ-6.6–6.18), with a geospatial map
+container added in Phase 7
+(`docs/mvp-plan/PRD-Phase-7.md`, REQ-7.4–7.7).
 
 ## What exists today
 
@@ -48,17 +50,39 @@ operator Mission Workspace in Phase 6
   an event timeline merging audit rows + a detections summary
   (`EventTimeline.tsx`), basic stats (`StatsPanel.tsx`), and a dedicated
   audit-trail view (`AuditTrailView.tsx`).
+- **Geospatial** (`features/telemetry/`): `MissionMap.tsx` integrates
+  MapLibre GL JS directly (no `react-map-gl` wrapper, per
+  [[ADR-007-map-library-choice]]) against a token-free OpenStreetMap
+  raster basemap, rendering a mission's telemetry route (REQ-7.3/7.5) as
+  a line layer, each persisted detection (REQ-6.1/6.2) as a
+  nearest-in-time point marker, and a current-position marker synced to
+  `VideoPlayerWithOverlay`'s own playback clock (lifted up via a new
+  `onTimeUpdate` prop, REQ-7.6). `nearestInTime.ts` is the pure
+  nearest-neighbor matching utility, with its video/telemetry
+  start-alignment assumption documented in its own header comment — the
+  one real modeling caveat this phase introduces (see [[Progress]]'s
+  Known gaps). Every rendered geolocation carries a persistent
+  "Approximate position" chip (REQ-7.7) — not just a one-time tooltip.
+  `TelemetryUploadPanel.tsx` uploads a CSV or GeoJSON file per mission
+  (REQ-7.2), format auto-detected server-side.
 - Vitest + Testing Library (unit tests for `authSlice`,
-  `missionStateMachine`, `errors.ts`, and an `App.test.tsx` smoke test);
-  Playwright (`playwright.config.ts`, `e2e/mission-workflow.spec.ts`) for
-  the one REQ-6.18 critical-path test.
+  `missionStateMachine`, `errors.ts`, `nearestInTime.ts`, and an
+  `App.test.tsx` smoke test); Playwright (`playwright.config.ts`,
+  `e2e/mission-workflow.spec.ts`) for the REQ-6.18/7.9 critical-path
+  test (now also covers telemetry upload + map rendering).
 - Lint/format via `@ai-defense/eslint-config/react`; strict TypeScript
   via `@ai-defense/ts-config/react-app.json` (`tsconfig.node.json` now
   also covers `playwright.config.ts`/`e2e/`).
 
 ## What's deliberately not here yet
 
-- No map/GIS rendering — Phase 7.
+- Geofences, full spatial queries, uncertainty-radius indicators, and
+  multi-mission map overlay — the roadmap's fuller Phase 7 scope,
+  explicitly deferred past the MVP (`docs/mvp-plan/PRD-Phase-7.md`
+  Section 4).
+- True interpolation-based route replay — the map's video-scrub sync
+  and detection markers are nearest-neighbor matches only, per
+  `nearestInTime.ts`'s documented assumption.
 - No role beyond the two flat ones (`operator`/`admin`) — no per-mission
   ownership check in the UI, matching `apps/api`'s current RBAC model
   (Security_Baseline.md).
@@ -76,9 +100,11 @@ operator Mission Workspace in Phase 6
 
 - [[PRD-Phase-1]] — REQ-1.3, REQ-1.8.
 - [[PRD-Phase-6]] — the requirements this build-out implements.
-- [[MVP_Implementation_Plan]] — Phase 6 (Frontend Mission Workspace).
+- [[PRD-Phase-7]] — the geospatial requirements this build-out extends.
+- [[ADR-007-map-library-choice]] — MapLibre GL JS + OSM raster tiles decision.
+- [[MVP_Implementation_Plan]] — Phase 6 (Frontend Mission Workspace), Phase 7 (GIS and Telemetry, MVP slice).
 - [[Architecture_Overview]] — the React Workspace container this app
   implements.
 - [[Repository_Structure]] — `apps/web` placement.
 - [[Security_Baseline]] — RBAC model the UI's role-gated controls follow.
-- [[Progress]] — Phase 6's implementation status and Known gaps.
+- [[Progress]] — Phase 6/7's implementation status and Known gaps.

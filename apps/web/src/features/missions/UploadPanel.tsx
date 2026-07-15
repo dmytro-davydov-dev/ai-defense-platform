@@ -51,7 +51,7 @@ export function UploadPanel({ mission }: { mission: Mission }) {
       id: mission.id,
       body: { fileName: file.name, contentType: file.type || "application/octet-stream" },
     });
-    if (!("data" in signed)) {
+    if (!signed.data) {
       setUploadProgress(null);
       return;
     }

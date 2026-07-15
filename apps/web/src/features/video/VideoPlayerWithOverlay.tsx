@@ -21,10 +21,16 @@ function annotatedVideoObjectKey(missionId: string): string {
 interface VideoPlayerWithOverlayProps {
   mission: Mission;
   detections: Detection[];
+  /** REQ-7.6: lets `MissionMap` sync a current-position marker to this video's own playback clock, without either component owning the other's state. */
+  onTimeUpdate?: (currentTimeMs: number) => void;
 }
 
 /** REQ-6.13: video player + detection overlay, canvas-drawn and synced to `<video>`'s own playback clock via `requestAnimationFrame` (not a fixed-interval timer, so it never falls out of sync with real playback rate/seeking). */
-export function VideoPlayerWithOverlay({ mission, detections }: VideoPlayerWithOverlayProps) {
+export function VideoPlayerWithOverlay({
+  mission,
+  detections,
+  onTimeUpdate,
+}: VideoPlayerWithOverlayProps) {
   const [source, setSource] = useState<"raw" | "annotated">(
     mission.videoObjectKey ? "raw" : "annotated",
   );
@@ -145,6 +151,7 @@ export function VideoPlayerWithOverlay({ mission, detections }: VideoPlayerWithO
             ref={videoRef}
             src={videoUrl}
             controls
+            onTimeUpdate={(event) => onTimeUpdate?.(event.currentTarget.currentTime * 1000)}
             style={{ width: "100%", display: "block" }}
           />
           <canvas

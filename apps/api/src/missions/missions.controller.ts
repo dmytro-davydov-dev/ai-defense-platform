@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -6,10 +7,18 @@ import {
   Patch,
   Post,
   Req,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
 import type { Request } from "express";
-import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
+import {
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiOperation,
+  ApiTags,
+} from "@nestjs/swagger";
 import { CORRELATION_ID_HEADER } from "@ai-defense/observability";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
@@ -24,11 +33,32 @@ import { AuditService } from "../audit/audit.service";
 import { AuditLogResponseDto } from "../audit/dto/audit-log-response.dto";
 import { DetectionsService } from "../detections/detections.service";
 import { DetectionResponseDto } from "../detections/dto/detection-response.dto";
+import { TelemetryService } from "../telemetry/telemetry.service";
+import { TelemetryParseError } from "../telemetry/telemetry.types";
+import { TelemetryResponseDto } from "../telemetry/dto/telemetry-response.dto";
+import { TelemetryIngestResponseDto } from "../telemetry/dto/telemetry-ingest-response.dto";
 import { MissionsService } from "./missions.service";
 import { CreateMissionDto } from "./dto/create-mission.dto";
 import { UpdateMissionMetadataDto } from "./dto/update-mission-metadata.dto";
 import { TransitionMissionDto } from "./dto/transition-mission.dto";
 import { MissionResponseDto } from "./dto/mission-response.dto";
+
+/**
+ * REQ-7.2: a narrow structural type for the file `FileInterceptor`
+ * hands the route handler, rather than `Express.Multer.File` — this
+ * repo has never added `@types/multer` as a dependency (multer 2.x
+ * ships no types of its own), and adding an unverified new type
+ * dependency in a sandbox that can't run `pnpm install` to confirm it
+ * resolves (see docs/roadmap/Progress.md's recurring Known gaps) is
+ * riskier than declaring exactly the two fields this handler actually
+ * reads. `FileInterceptor("file")` with no storage option configured
+ * uses multer's default `MemoryStorage`, which always populates
+ * `buffer` — never `path`.
+ */
+interface UploadedMulterFile {
+  readonly buffer: Buffer;
+  readonly originalname: string;
+}
 
 /** REQ-2.7/2.8: mission CRUD + state transitions. Every mutating route requires an authenticated operator/admin (REQ-2.5). */
 @ApiTags("missions")
@@ -40,6 +70,7 @@ export class MissionsController {
     private readonly storageService: StorageService,
     private readonly auditService: AuditService,
     private readonly detectionsService: DetectionsService,
+    private readonly telemetryService: TelemetryService,
   ) {}
 
   @Post()
@@ -177,6 +208,53 @@ export class MissionsController {
       objectKey: result.objectKey,
       expiresAt: result.expiresAt.toISOString(),
     };
+  }
+
+  @Post(":id/telemetry")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLE_NAMES.OPERATOR, ROLE_NAMES.ADMIN)
+  @UseInterceptors(
+    FileInterceptor("file", { limits: { fileSize: 5 * 1024 * 1024 } }),
+  )
+  @ApiConsumes("multipart/form-data")
+  @ApiOperation({
+    summary:
+      "Batch-ingest a mission's telemetry from a CSV or GeoJSON file (REQ-7.2). No live sensor feed — a single file upload replaces nothing, it only appends.",
+  })
+  async uploadTelemetry(
+    @Param("id") id: string,
+    @UploadedFile() file: UploadedMulterFile | undefined,
+  ): Promise<TelemetryIngestResponseDto> {
+    await this.missionsService.getMission(id);
+    if (!file) {
+      throw new BadRequestException(
+        "a telemetry file is required (field name: file)",
+      );
+    }
+    try {
+      const { pointCount } = await this.telemetryService.ingest(
+        id,
+        file.buffer.toString("utf-8"),
+      );
+      return { missionId: id, pointCount };
+    } catch (error) {
+      if (error instanceof TelemetryParseError) {
+        throw new BadRequestException(error.message);
+      }
+      throw error;
+    }
+  }
+
+  @Get(":id/telemetry")
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary:
+      "Read a mission's persisted telemetry as a GeoJSON LineString (REQ-7.3) — backs the map container (REQ-7.5/7.6). Every response is flagged properties.approximate=true (REQ-7.7): never verified targeting data.",
+  })
+  async getTelemetry(@Param("id") id: string): Promise<TelemetryResponseDto> {
+    await this.missionsService.getMission(id);
+    const records = await this.telemetryService.listForMission(id);
+    return TelemetryResponseDto.fromRecords(id, records);
   }
 }
 

@@ -53,6 +53,14 @@ Chosen as a portable inference runtime across development, cloud and edge enviro
 
 Used as an optional NVIDIA-specific optimization behind an adapter.
 
+## MapLibre GL JS
+
+Chosen for `apps/web`'s map container (Phase 7) over Mapbox GL JS
+specifically to avoid a mandatory paid API token — see
+[[ADR-007-map-library-choice]] for the full trade-off, including the
+token-free OpenStreetMap raster basemap choice and its local-first
+tension with the rest of this platform's fully offline Compose stack.
+
 ## Docker Compose and Kubernetes
 
 Docker Compose supports local development. Kubernetes is introduced after core workflows stabilize.

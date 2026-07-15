@@ -11,6 +11,7 @@ import CircularProgress from "@mui/material/CircularProgress";
 import Alert from "@mui/material/Alert";
 import {
   useGetMissionQuery,
+  useGetTelemetryQuery,
   useListAuditLogQuery,
   useListDetectionsQuery,
 } from "../../api/apiSlice";
@@ -24,6 +25,8 @@ import { StatsPanel } from "./StatsPanel";
 import { EventTimeline } from "./EventTimeline";
 import { AuditTrailView } from "./AuditTrailView";
 import { VideoPlayerWithOverlay } from "../video/VideoPlayerWithOverlay";
+import { MissionMap } from "../telemetry/MissionMap";
+import { TelemetryUploadPanel } from "../telemetry/TelemetryUploadPanel";
 
 type DetailTab = "overview" | "timeline" | "audit";
 
@@ -31,6 +34,7 @@ type DetailTab = "overview" | "timeline" | "audit";
 export function MissionDetailPage() {
   const { missionId } = useParams<{ missionId: string }>();
   const [tab, setTab] = useState<DetailTab>("overview");
+  const [currentTimeMs, setCurrentTimeMs] = useState(0);
 
   const {
     data: mission,
@@ -45,6 +49,8 @@ export function MissionDetailPage() {
     missionId ?? "",
     { skip: !missionId },
   );
+  // REQ-7.3: returns an empty route (200, zero points) when nothing has been uploaded yet — MissionMap renders a "no telemetry" message for that case, not an error state.
+  const { data: telemetry } = useGetTelemetryQuery(missionId ?? "", { skip: !missionId });
 
   const { connected } = useMissionSocket(missionId);
 
@@ -83,6 +89,7 @@ export function MissionDetailPage() {
       <Stack spacing={2} sx={{ mb: 3 }}>
         <MissionMetadataForm mission={mission} />
         <UploadPanel mission={mission} />
+        <TelemetryUploadPanel missionId={missionId} />
         <TransitionControls mission={mission} />
       </Stack>
 
@@ -97,7 +104,12 @@ export function MissionDetailPage() {
       {tab === "overview" ? (
         <Stack spacing={3}>
           <StatsPanel mission={mission} detections={detections} />
-          <VideoPlayerWithOverlay mission={mission} detections={detections} />
+          <VideoPlayerWithOverlay
+            mission={mission}
+            detections={detections}
+            onTimeUpdate={setCurrentTimeMs}
+          />
+          <MissionMap telemetry={telemetry} detections={detections} currentTimeMs={currentTimeMs} />
         </Stack>
       ) : null}
 
