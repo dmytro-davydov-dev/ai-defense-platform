@@ -44,7 +44,7 @@ describe("MissionsService (REQ-2.7/2.8/2.13)", () => {
         callback("fake-tx"),
       ),
     };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     service = new MissionsService(
       repo as any,
       audit as any,

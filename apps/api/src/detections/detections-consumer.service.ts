@@ -9,30 +9,36 @@ import {
 import { Kafka } from "kafkajs";
 import type { Consumer, EachMessagePayload, Producer } from "kafkajs";
 import { TOPICS } from "@ai-defense/event-schemas";
-import { MissionsService } from "../missions/missions.service";
+import { DetectionsService } from "./detections.service";
 import { ProcessedEventsRepository } from "../processed-events/processed-events.repository";
 import {
   MISSION_EVENTS_PUBLISHER,
   type MissionEventsPublisherLike,
 } from "../realtime/mission-events-publisher";
-import { handleProcessingEventMessage } from "./processing-events.handler";
+import { handleDetectionMessage } from "./detections.handler";
 
 /**
- * REQ-3.14: consumes `aidefense.processing-events` and drives
- * `MissionsService.transition()`. The real kafkajs wiring lives here;
- * `handleProcessingEventMessage` (processing-events.handler.ts) has the
- * actual idempotency/retry/DLQ logic and is what's unit-tested.
+ * REQ-6.1: consumes `aidefense.detections` and persists every retained
+ * detection via `DetectionsService`. Own consumer group
+ * (`api-detections`) so this consumer's offsets/idempotency records are
+ * independent of `ProcessingEventsConsumerService`'s — the two topics
+ * are consumed at different rates (one detection-event per retained
+ * detection vs. one processing-event per mission-lifecycle milestone)
+ * and a slow/failing detections consumer must never block mission
+ * status transitions, or vice versa. Real kafkajs wiring lives here;
+ * `handleDetectionMessage` (detections.handler.ts) has the actual
+ * idempotency/retry/DLQ logic and is what's unit-tested.
  */
 @Injectable()
-export class ProcessingEventsConsumerService
+export class DetectionsConsumerService
   implements OnModuleInit, OnModuleDestroy
 {
-  private readonly logger = new Logger(ProcessingEventsConsumerService.name);
+  private readonly logger = new Logger(DetectionsConsumerService.name);
   private consumer: Consumer | undefined;
   private dlqProducer: Producer | undefined;
 
   constructor(
-    private readonly missionsService: MissionsService,
+    private readonly detectionsService: DetectionsService,
     private readonly processedEventsRepository: ProcessedEventsRepository,
     @Optional()
     @Inject(MISSION_EVENTS_PUBLISHER)
@@ -45,34 +51,26 @@ export class ProcessingEventsConsumerService
       .map((broker) => broker.trim())
       .filter((broker) => broker.length > 0);
     if (brokers.length === 0) {
-      // Consistent with StorageService/PrismaService's loud-fail-on-missing-config
-      // pattern would be tempting here, but a missing KAFKA_BROKERS
-      // shouldn't take down the whole HTTP API — REQ-3.14 is additive
-      // to REQ-2.7/2.8's synchronous mission CRUD, not a replacement
-      // for it. Log loudly and continue without a consumer instead.
-      this.logger.warn(
-        "KAFKA_BROKERS not set — processing-events consumer disabled",
-      );
+      // Same "warn and continue without a consumer" posture as
+      // ProcessingEventsConsumerService — a missing KAFKA_BROKERS
+      // shouldn't take down the whole HTTP API.
+      this.logger.warn("KAFKA_BROKERS not set — detections consumer disabled");
       return;
     }
 
     const kafka = new Kafka({
-      clientId: "api-processing-events-consumer",
+      clientId: "api-detections-consumer",
       brokers,
     });
 
-    // Captured as a local (non-optional `Producer`) rather than read
-    // back off `this.dlqProducer` inside the closure below, so the
-    // handler never needs a non-null assertion to satisfy
-    // `ProcessingEventsHandlerDeps`'s required `dlqProducer`.
     const dlqProducer = kafka.producer();
     await dlqProducer.connect();
     this.dlqProducer = dlqProducer;
 
-    this.consumer = kafka.consumer({ groupId: "api-processing-events" });
+    this.consumer = kafka.consumer({ groupId: "api-detections" });
     await this.consumer.connect();
     await this.consumer.subscribe({
-      topic: TOPICS.PROCESSING_EVENTS,
+      topic: TOPICS.DETECTIONS,
       fromBeginning: false,
     });
     await this.consumer.run({
@@ -80,15 +78,15 @@ export class ProcessingEventsConsumerService
         if (!message.value) {
           return;
         }
-        await handleProcessingEventMessage(message.value.toString(), {
-          missionsService: this.missionsService,
+        await handleDetectionMessage(message.value.toString(), {
+          detectionsService: this.detectionsService,
           processedEventsRepository: this.processedEventsRepository,
           dlqProducer,
           realtimePublisher: this.realtimePublisher,
         });
       },
     });
-    this.logger.log(`Subscribed to ${TOPICS.PROCESSING_EVENTS}`);
+    this.logger.log(`Subscribed to ${TOPICS.DETECTIONS}`);
   }
 
   async onModuleDestroy(): Promise<void> {

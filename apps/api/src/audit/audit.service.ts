@@ -1,6 +1,10 @@
 import { Injectable } from "@nestjs/common";
 import { AuditRepository } from "./audit.repository";
-import type { PrismaExecutor, RecordAuditInput } from "./audit.types";
+import type {
+  AuditLogRecord,
+  PrismaExecutor,
+  RecordAuditInput,
+} from "./audit.types";
 
 /**
  * REQ-2.10: append-only audit trail for every mission-lifecycle action
@@ -25,5 +29,10 @@ export class AuditService {
     executor?: PrismaExecutor,
   ): Promise<void> {
     await this.auditRepository.create(input, executor);
+  }
+
+  /** REQ-6.3: every audit row recorded against a mission, chronologically — backs the audit-trail view (REQ-6.16). */
+  listForMission(missionId: string): Promise<AuditLogRecord[]> {
+    return this.auditRepository.findByMissionId(missionId);
   }
 }

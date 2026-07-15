@@ -692,11 +692,11 @@ detections/annotated-video output.
 
 ### Backend read-path prerequisites
 
-- [ ] REQ-6.1 — `aidefense.detections` consumer persists detections to Postgres, idempotent (reuses REQ-3.8)
-- [ ] REQ-6.2 — `GET /missions/:id/detections` endpoint
-- [ ] REQ-6.3 — `GET /missions/:id/audit-log` endpoint
-- [ ] REQ-6.4 — signed download-URL capability (source + annotated video)
-- [ ] REQ-6.5 — JWT-authenticated WebSocket gateway, per-mission subscription, relays processing-events + detections
+- [x] REQ-6.1 — `aidefense.detections` consumer persists detections to Postgres, idempotent (reuses REQ-3.8) — `apps/api/src/detections/` (`detections-consumer.service.ts` + `detections.handler.ts`, own consumer group `api-detections`)
+- [x] REQ-6.2 — `GET /missions/:id/detections` endpoint — `MissionsController.listDetections`, ordered by frame index
+- [x] REQ-6.3 — `GET /missions/:id/audit-log` endpoint — `MissionsController.listAuditLog`, `AuditRepository.findByMissionId` (generated `auditLog` delegate, unaffected by the stale-client gap)
+- [x] REQ-6.4 — signed download-URL capability (source + annotated video) — **already existed**: `StorageController`'s generic `GET /storage/download-url?objectKey=` (REQ-2.9) plus Phase 5's deterministic `missions/{missionId}/annotated.mp4` key convention cover this with no new endpoint; see this phase's changelog entry for the reasoning
+- [x] REQ-6.5 — JWT-authenticated WebSocket gateway, per-mission subscription, relays processing-events + detections — `apps/api/src/realtime/` (`MissionEventsGateway`, Socket.IO per the user's chosen transport), wired into both `processing-events.handler.ts` and `detections.handler.ts` via the `MISSION_EVENTS_PUBLISHER` token
 
 ### App scaffold and API layer
 
@@ -736,8 +736,69 @@ detections/annotated-video output.
 - [ ] REQ-6.18 — one end-to-end test: create mission → upload → live status → detections rendered
 
 **Phase 6 exit:** all boxes above checked, plus the Definition of Done
-in [[PRD-Phase-6]] Section 8. **Status: planning only — implementation
-not yet started.**
+in [[PRD-Phase-6]] Section 8. **Status: backend read-path prerequisites
+(REQ-6.1–6.5) substantively complete; frontend (REQ-6.6–6.18) not yet
+started** — see Known gaps.
+
+### Known gaps
+
+- **`pnpm install` cannot run in this sandbox** — the same recurring
+  `_tmp_*` EPERM-on-unlink mount restriction documented in every prior
+  phase's Known gaps (Phase 4/5) blocks `pnpm`'s store-path check no
+  matter which `--store-dir` is used. Confirmed this session:
+  `@nestjs/websockets`, `@nestjs/platform-socket.io`, and `socket.io`
+  are declared in `apps/api/package.json` but **not installed** in this
+  sandbox's `node_modules`. `nx run @ai-defense/api:typecheck`/`:lint`
+  both confirm this is the *only* thing blocking a fully clean run:
+  every error either one produces is confined to
+  `src/realtime/mission-events.gateway.ts` and its spec, and is exactly
+  the `Cannot find module '@nestjs/websockets'`/`'socket.io'` (or a
+  `no-unsafe-*` cascade from that same unresolved type) — nothing
+  else in the phase's new or touched code is affected. Run
+  `pnpm install` on a machine with normal filesystem permissions before
+  relying on the WebSocket gateway.
+- **`pnpm exec jest` cannot run *any* test in this sandbox**, including
+  pre-existing, untouched files — confirmed by running
+  `apps/api/src/kafka/retry.util.spec.ts` (unrelated to this session)
+  directly, which fails with the same
+  `Module ts-jest in the transform option was not found` Jest
+  validation error, despite `require.resolve("ts-jest")` succeeding from
+  plain Node and `ts-jest` being physically present in
+  `node_modules/.pnpm`. This is a pre-existing, sandbox-wide Jest
+  resolver issue, not something this session introduced or something
+  specific to the new `detections.handler.spec.ts`/`ws-auth.util.spec.ts`/
+  `mission-events.gateway.spec.ts` files — all three are written,
+  reviewed, and follow the exact same structure as
+  `processing-events.handler.spec.ts` (already passing in prior
+  sessions' non-sandboxed runs). Re-run `pnpm test` on a normal dev
+  machine to confirm.
+- **REQ-6.4 needed no new code.** Research before implementing found
+  `StorageController`'s generic `GET /storage/download-url?objectKey=`
+  (REQ-2.9) already issues signed download URLs for any object key, and
+  `apps/api`'s RBAC model doesn't scope mission reads to their creator
+  (`GET /missions`/`GET /missions/:id` return/allow any authenticated
+  user, per the two-flat-role model) — so a mission-scoped download
+  endpoint would have been redundant. The frontend (Phase 6's next
+  slice) reads a mission's `videoObjectKey` from the existing
+  `MissionResponseDto` and derives the annotated video's key from Phase
+  5's deterministic `missions/{missionId}/annotated.mp4` convention
+  (`storage/minio_client.py`'s `upload_from()`), then calls the existing
+  generic endpoint for either.
+- `apps/api/prisma/schema.prisma`'s new `Detection` model has the same
+  `prisma migrate dev`/`prisma generate`-blocked status as every model
+  added since Phase 3 — `DetectionsRepository` uses `$queryRaw`/
+  `$executeRaw` against the hand-written
+  `20260715090000_frontend_workspace` migration instead of a generated
+  delegate, same pattern as `OutboxRepository`/`ProcessedEventsRepository`.
+  Verify the migration with `prisma migrate diff`/`prisma migrate dev`
+  and regenerate the client on a machine with network access to
+  `binaries.prisma.sh`.
+- No integration test yet exercises the WebSocket gateway end-to-end
+  (a real Socket.IO client connecting, subscribing, and receiving a
+  relayed event) — same no-docker/no-live-broker limitation as every
+  prior phase's `*.e2e-spec.ts` files. Worth adding once a machine with
+  Docker is available; would need `socket.io-client` as a new
+  devDependency.
 
 ---
 
@@ -746,6 +807,7 @@ not yet started.**
 Append one line per completed task, newest first. Format:
 `YYYY-MM-DD — REQ-x.x or free text — one-line note`.
 
+- 2026-07-15 — REQ-6.1/6.2/6.3/6.5 implemented (REQ-6.4 needed no new code) — Phase 6's backend read-path prerequisites built in `apps/api`: a new `detections` module (`src/detections/`) with a `Detection` Prisma model + hand-written migration (`prisma/migrations/20260715090000_frontend_workspace`), a `$queryRaw`/`$executeRaw`-based repository (same stale-generated-client workaround as `OutboxRepository`/`ProcessedEventsRepository`), a pure `handleDetectionMessage` handler mirroring `processing-events.handler.ts`'s idempotency/retry/DLQ structure under its own consumer name (`api-detections`), and a kafkajs consumer subscribing to `aidefense.detections`. Added `GET /missions/:id/detections` and `GET /missions/:id/audit-log` to `MissionsController` (the latter backed by a new `AuditRepository.findByMissionId`/`AuditService.listForMission`, using the existing generated `auditLog` delegate since that model hasn't changed shape). Built a real-time layer (`src/realtime/`): a `MissionEventsGateway` (Socket.IO, per the user's chosen transport) that authenticates the handshake with the same `JWT_SECRET` REST already uses, lets a client join a per-mission room, and implements a narrow `MissionEventsPublisherLike` interface bound via a `MISSION_EVENTS_PUBLISHER` DI token — both `processing-events.handler.ts` and the new `detections.handler.ts` now take an optional `realtimePublisher` and relay a successfully-processed event to the mission's room, best-effort, never failing the Kafka message itself. Research before implementing found REQ-6.4 (signed download URL) already existed as `StorageController`'s generic `GET /storage/download-url`, and that Phase 5's annotated video is uploaded to a deterministic, convention-based key (`missions/{missionId}/annotated.mp4`) — so no new download endpoint was needed, only documented. Added `@nestjs/websockets`/`@nestjs/platform-socket.io`/`socket.io` to `apps/api/package.json`. Wrote unit tests for the new handler (`detections.handler.spec.ts`, mirroring `processing-events.handler.spec.ts`), the gateway's pure JWT-extraction helper (`ws-auth.util.spec.ts`), and the gateway class itself with mocked `Socket`/`JwtService` (`mission-events.gateway.spec.ts`). Verified via `nx run @ai-defense/api:{typecheck,lint}`: clean except for the two new dependencies not being installed in this sandbox (see Known gaps) — confirmed via `--skip-nx-cache` that every remaining error is confined to `src/realtime/mission-events.gateway.ts`/its spec and traces to exactly that. `pnpm exec jest` could not run in this sandbox at all (confirmed pre-existing and unrelated to this session by reproducing the same failure against an untouched file, `retry.util.spec.ts`) — new tests are written and reviewed, not run; see Known gaps. Frontend (REQ-6.6–6.18) not started this session — next slice per the user's chosen backend-first sequencing.
 - 2026-07-15 — Phase 6 planning — Drafted [[PRD-Phase-6]] (REQ-6.1–6.18), covering the operator-facing Mission Workspace: RTK-Query-driven `apps/web` (routing, MUI, Redux Toolkit) generated from `packages/contracts/openapi.json`; login/logout and protected routing; mission list/detail/create/edit/transition views; the signed-URL upload workflow; and a video player with a detection overlay synced to Phase 5's detections. Research surfaced three `apps/api` gaps this phase must close before the frontend can be built, none of which any prior phase needed: nothing persists `aidefense.detections` for later query (no consumer, no table, no read endpoint), nothing exposes the Phase 2 `audit_log` table for reading, and `StorageService` only issues signed *upload* URLs, never download ones. Added REQ-6.1–6.5 to cover a new detections consumer (reusing REQ-3.8's idempotent-consumption pattern), a detections-read endpoint, an audit-log-read endpoint, a signed-download-URL endpoint, and a JWT-authenticated WebSocket gateway relaying processing-events/detections per mission — the first real-time channel to the browser anywhere in the stack. No new ADR is required per [[MVP_Implementation_Plan]]'s ADR summary (frontend stack already accepted in [[Technology_Decisions]]); flagged the WebSocket transport/room-model choice as a candidate `ADR-007` only if its trade-offs turn out non-obvious. Phase 6 checklist added below, all unchecked — implementation not yet started.
 - 2026-07-14 — REQ-5.1–5.12 implemented — Phase 5 (AI Detection and Tracking) built end-to-end in `apps/vision-service/src/vision_service/detection/`: `adapter.py` (`DetectorAdapterLike` Protocol + `NullDetectorAdapter` "disabled, not broken" fallback), `classes.py` (`COCO_CLASSES` full vocabulary + `ALLOWED_CLASSES` 12-class civilian/synthetic safety allow-list, not env-configurable), `filters.py` (confidence-threshold + class-allow-list filtering, one shared stage regardless of model), `tracker.py` (in-house, dependency-free, per-label greedy-IoU `Tracker` — not the roadmap's named ByteTrack/BoT-SORT, see [[ADR-006-detection-model-and-tracker]]'s "Alternative C" for why), `onnx_detector.py` (`OnnxDetectorAdapter`, CPU-only ONNX Runtime against the standard Ultralytics YOLOv8 output layout, NMS via `cv2.dnn.NMSBoxes`, injectable session for testing), `factory.py` (module-level singleton, same pattern as `storage.minio_client`), and `pipeline.py` (`run_detection_pipeline()`, the real per-frame detect→filter→track→annotate body that replaces Phase 4's counting-only loop, run via `asyncio.to_thread` since it's fully synchronous/CPU-bound). `frames/models.py`'s `Detection` gained optional `trackId`; `annotation/draw.py` now shows it in the label. `storage/minio_client.py` gained `upload_from()` for the annotated-video artifact (REQ-5.7, `missions/{missionId}/annotated.mp4`). `kafka/commands_consumer.py`'s `handle_command_message` gained a fifth `detector` parameter, now publishes one `DETECTION_PUBLISHED` per retained detection to `aidefense.detections` (mission ID partition key) between STARTED and COMPLETED, and `PROCESSING_COMPLETED` gained additive `detectionCount`/`trackCount`/`annotatedVideoObjectKey` fields (ADR-005, no `eventVersion` bump). Added `DETECTION_PUBLISHED` to `packages/event-schemas` (JSON Schema + TS + Pydantic, `EVENT_SCHEMAS_PACKAGE_VERSION` → `0.3.0`); `test_event_schema_sync.py`'s three-way check extended to cover it. Model-load/inference failures (`ModelLoadError`/`ModelInferenceError`/`DetectionPipelineError`) reuse the existing retry/DLQ/`PROCESSING_FAILED` path (REQ-5.10). Drafted [[ADR-006-detection-model-and-tracker]] (model: YOLOv8n/ONNX Runtime CPU; tracker: in-house IoU, not ByteTrack/BoT-SORT) and [[Detection_And_Tracking]] (docs/ai/'s first note). 28 new tests across 4 new files (`test_detection_filters.py`, `test_detection_tracker.py`, `test_detection_onnx_detector.py` — against a fake ONNX session with synthetic YOLOv8-shaped output, no real model file — `test_detection_pipeline.py` — scripted detector against the Phase 4 sample fixture, threshold-based per REQ-5.12) plus `test_commands_consumer.py` rewritten for the 5-argument signature and new DETECTION_PUBLISHED/upload behavior; 86 tests total, all passing against this sandbox's system Python 3.10. Verified: `ruff check`/`ruff format --check` clean; TS side `nx run @ai-defense/event-schemas:{lint,typecheck,test,build}` all pass; `@ai-defense/api:typecheck` reports success (a trailing `Operation not permitted` after that is the same sandbox mount-permission class of issue as `.git/index.lock` below, not a typecheck failure). `onnxruntime` added to `pyproject.toml` but not yet re-locked into `uv.lock` (same recurring gap as Phase 4's three dependencies). No real `.onnx` model has been run through `OnnxDetectorAdapter` anywhere in this sandbox — see this phase's Known gaps.
 - 2026-07-14 — Phase 5 planning — Drafted [[PRD-Phase-5]] (REQ-5.1–5.12), covering a swappable detector adapter interface, YOLO-via-ONNX-Runtime inference (CPU-only), configurable confidence threshold and a hard-enforced civilian/synthetic class allow-list (safety constraint, not just documentation), ByteTrack/BoT-SORT multi-object tracking with track history, a new `DETECTION_PUBLISHED` payload publishing real detections to `aidefense.detections` (declared since Phase 3, never populated), annotated-video generation via Phase 4's existing drawing utility, and per-frame inference metrics in structured logs. Flags two required ADRs (model choice + detector-adapter interface, tracker choice — next number `ADR-006`) deferred by [[PRD-Phase-4]] Section 7, and carries forward the recurring `apps/vision-service/uv.lock` re-lock prerequisite for this phase's new dependencies (ONNX Runtime, tracker library). Phase 5 checklist added below, all unchecked — implementation not yet started.

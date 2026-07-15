@@ -7,6 +7,7 @@ import type { ProcessedEventsRepository } from "../processed-events/processed-ev
 import { withBoundedRetry } from "./retry.util";
 import { buildDeadLetterEnvelope } from "./dead-letter";
 import type { KafkaProducerLike } from "./kafka-producer-like";
+import type { MissionEventsPublisherLike } from "../realtime/mission-events-publisher";
 
 const CONSUMER_NAME = "api";
 const RETRY_ATTEMPTS = 3;
@@ -26,6 +27,8 @@ export interface ProcessingEventsHandlerDeps {
     "markProcessed"
   >;
   readonly dlqProducer: KafkaProducerLike;
+  /** REQ-6.5: optional so this stays callable without wiring RealtimeModule (e.g. existing tests). */
+  readonly realtimePublisher?: MissionEventsPublisherLike | undefined;
 }
 
 interface ProcessingEventPayload {
@@ -102,6 +105,12 @@ export async function handleProcessingEventMessage(
       ...logContext,
       missionId: envelope.payload.missionId,
       targetStatus,
+    });
+    // REQ-6.5: best-effort relay to any browser tab subscribed to this
+    // mission's real-time channel — never fails the message itself.
+    deps.realtimePublisher?.publishMissionEvent(envelope.payload.missionId, {
+      eventType: envelope.eventType,
+      payload: envelope.payload,
     });
     return;
   }

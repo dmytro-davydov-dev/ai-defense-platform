@@ -11,16 +11,29 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "typecheck": "tsc -b --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "codegen:api": "rtk-query-codegen-openapi openapi-codegen.config.ts"
   },
   "dependencies": {
+    "@ai-defense/contracts": "workspace:*",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@mui/icons-material": "^6.3.1",
+    "@mui/material": "^6.3.1",
+    "@reduxjs/toolkit": "^2.5.0",
     "express": "^4.21.2",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "react-redux": "^9.2.0",
+    "react-router-dom": "^7.1.1",
+    "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
     "@ai-defense/eslint-config": "workspace:*",
     "@ai-defense/ts-config": "workspace:*",
+    "@playwright/test": "^1.49.1",
+    "@rtk-query/codegen-openapi": "^2.0.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
     "@types/express": "^5.0.0",

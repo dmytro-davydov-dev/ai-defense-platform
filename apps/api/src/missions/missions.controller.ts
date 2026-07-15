@@ -20,6 +20,10 @@ import type { AuthenticatedUser } from "../auth/auth.types";
 import { StorageService } from "../storage/storage.service";
 import { SignedUrlResponseDto } from "../storage/dto/signed-url-response.dto";
 import { CreateUploadUrlDto } from "../storage/dto/create-upload-url.dto";
+import { AuditService } from "../audit/audit.service";
+import { AuditLogResponseDto } from "../audit/dto/audit-log-response.dto";
+import { DetectionsService } from "../detections/detections.service";
+import { DetectionResponseDto } from "../detections/dto/detection-response.dto";
 import { MissionsService } from "./missions.service";
 import { CreateMissionDto } from "./dto/create-mission.dto";
 import { UpdateMissionMetadataDto } from "./dto/update-mission-metadata.dto";
@@ -34,6 +38,8 @@ export class MissionsController {
   constructor(
     private readonly missionsService: MissionsService,
     private readonly storageService: StorageService,
+    private readonly auditService: AuditService,
+    private readonly detectionsService: DetectionsService,
   ) {}
 
   @Post()
@@ -106,6 +112,34 @@ export class MissionsController {
       correlationId: readCorrelationId(req),
     });
     return MissionResponseDto.fromRecord(mission);
+  }
+
+  @Get(":id/detections")
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary:
+      "List a mission's persisted detections (REQ-6.1/6.2), ordered by frame index — backs the video overlay (REQ-6.13) and stats (REQ-6.15).",
+  })
+  async listDetections(
+    @Param("id") id: string,
+  ): Promise<DetectionResponseDto[]> {
+    await this.missionsService.getMission(id);
+    const detections = await this.detectionsService.listForMission(id);
+    return detections.map((detection) =>
+      DetectionResponseDto.fromRecord(detection),
+    );
+  }
+
+  @Get(":id/audit-log")
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary:
+      "List a mission's audit trail (REQ-6.3), chronologically — backs the audit-trail view (REQ-6.16).",
+  })
+  async listAuditLog(@Param("id") id: string): Promise<AuditLogResponseDto[]> {
+    await this.missionsService.getMission(id);
+    const entries = await this.auditService.listForMission(id);
+    return entries.map((entry) => AuditLogResponseDto.fromRecord(entry));
   }
 
   @Post(":id/upload-url")

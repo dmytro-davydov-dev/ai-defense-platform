@@ -17,3 +17,23 @@ export interface RecordAuditInput {
   correlationId?: string | null | undefined;
   metadata?: Record<string, unknown> | null | undefined;
 }
+
+/**
+ * REQ-6.3: what `AuditRepository.findByMissionId` returns — the same
+ * fields `RecordAuditInput` writes, plus the row's own id/timestamp.
+ * `metadata` comes back as `unknown` (Prisma's `Json` maps to
+ * `Prisma.JsonValue` at the delegate boundary); the controller passes it
+ * through as-is rather than re-typing it, since its shape varies by
+ * `action` (e.g. `mission.transition`'s `{ from, to }`).
+ */
+export interface AuditLogRecord {
+  id: string;
+  actorUserId: string | null;
+  action: string;
+  targetType: string;
+  targetId: string | null;
+  missionId: string | null;
+  correlationId: string | null;
+  metadata: unknown;
+  createdAt: Date;
+}

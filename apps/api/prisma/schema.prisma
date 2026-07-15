@@ -55,6 +55,7 @@ model Mission {
   createdAt      DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
   auditLogs      AuditLog[]
+  detections     Detection[]
 
   @@map("missions")
 }
@@ -169,6 +170,41 @@ model Outbox {
 
   @@index([publishedAt])
   @@map("outbox")
+}
+
+// Phase 6 (docs/mvp-plan/PRD-Phase-6.md REQ-6.1): persisted mirror of
+// every retained DETECTION_PUBLISHED event on aidefense.detections, so
+// apps/web can read a mission's full detection history (REQ-6.2) after
+// processing completes, not just live off the WebSocket relay
+// (REQ-6.5). `boundingBox` is stored as-is (jsonb) rather than four
+// separate columns — same shape as the Kafka payload
+// (packages/event-schemas/src/payloads.ts's `DetectionBoundingBox`), no
+// translation needed at the read boundary. Append-only: nothing updates
+// or deletes a row here, same posture as AuditLog.
+//
+// NOTE: like Outbox/ProcessedEvent above, this model could not be
+// migrated via `prisma migrate dev`/`prisma generate` in this sandbox
+// (binaries.prisma.sh network-blocked — see docs/roadmap/Progress.md
+// Known gaps). The hand-written SQL is at
+// apps/api/prisma/migrations/20260715090000_frontend_workspace/migration.sql.
+// DetectionsRepository therefore uses `$queryRaw`/`$executeRaw` against
+// these columns directly, exactly like OutboxRepository/
+// ProcessedEventsRepository, rather than a generated `Detection`
+// delegate that doesn't exist in the stale client.
+model Detection {
+  id               String   @id @default(uuid())
+  missionId        String   @map("mission_id")
+  mission          Mission  @relation(fields: [missionId], references: [id])
+  frameIndex       Int      @map("frame_index")
+  frameTimestampMs Int      @map("frame_timestamp_ms")
+  trackId          Int      @map("track_id")
+  label            String
+  confidence       Float
+  boundingBox      Json     @map("bounding_box")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@index([missionId])
+  @@map("detections")
 }
 
 // REQ-3.8: idempotent consumption on both sides of the broker. One row
