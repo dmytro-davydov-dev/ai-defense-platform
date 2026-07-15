@@ -71,6 +71,23 @@ detectors (`tests/test_detection_pipeline.py`); a real model's output
 distribution has never been observed by this code. See
 [[Vision_Service_Shell]]'s Phase 5 Known gap for detail.
 
+[[PRD-Phase-8]] (Data, Training and Model Lifecycle) adds the tooling
+that would produce and govern a real model — a dataset registry,
+annotation import, a training pipeline, a model registry, and audited
+promotion/rollback ([[ADR-008-experiment-tracking-and-dataset-versioning]],
+[[ADR-009-annotation-format]]) — but does not itself close this gap:
+`ultralytics`/`torch` could not be installed in this sandbox either
+(same class of network restriction as every prior phase's `uv sync`/
+`prisma generate` issues), so no training run has actually been
+executed here, and `detection.factory`'s new registry-resolution path
+(REQ-8.10) has only ever resolved to "no model in production yet" in
+this environment. What changed: `detection.factory.build_detector()`
+now also asks the model registry for a production model before falling
+back to `NullDetectorAdapter`, so once a real model is trained and
+promoted on a normal dev machine, a restarted `vision-service` picks it
+up with no code change — see `detection/factory.py`'s module docstring
+and [[PRD-Phase-8]] REQ-8.10.
+
 ------------------------------------------------------------------------
 
 ## Related Notes
@@ -80,3 +97,6 @@ distribution has never been observed by this code. See
 - [[Vision_Service_Shell]] — full module-by-module detail.
 - [[PRD-Phase-4]] — the frame-iteration/annotation substrate this phase plugs into.
 - [[Technology_Decisions]] — YOLO/ONNX Runtime as platform-wide accepted choices.
+- [[PRD-Phase-8]] — dataset/training/model-lifecycle tooling that would produce a real model for this adapter.
+- [[ADR-008-experiment-tracking-and-dataset-versioning]] — Phase 8's tracking/versioning tooling decision.
+- [[ADR-009-annotation-format]] — Phase 8's annotation format decision.

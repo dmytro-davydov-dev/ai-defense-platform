@@ -50,6 +50,18 @@ infrastructure/compose/.data/
 # Coverage
 coverage/
 
+# Phase 8 (docs/mvp-plan/PRD-Phase-8.md): local dataset/model staging
+# only — real content lives in MinIO, never git, per
+# docs/architecture/Repository_Structure.md's "datasets and model
+# binaries are not committed unless explicitly licensed and small" rule.
+# See datasets/README.md, models/README.md.
+/datasets/*
+!/datasets/README.md
+!/datasets/.gitkeep
+/models/*
+!/models/README.md
+!/models/.gitkeep
+
 # Stray pnpm temp files this sandbox's filesystem can't delete once
 # pnpm creates them (an interrupted `pnpm install`'s store-path check
 # leaves these at the repo root) — harmless, but keep them out of git

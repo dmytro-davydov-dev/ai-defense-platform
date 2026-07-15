@@ -295,6 +295,93 @@ dependency-free by design, per [[ADR-006-detection-model-and-tracker]]).
   this sandbox's system Python 3.10 — a real Python 3.12 + Docker run
   of the full Compose stack (per REQ-4.12/5.12's DoD) is still open.
 
+## Phase 8: dataset/training/model-lifecycle tooling
+
+New `training/` package (docs/mvp-plan/PRD-Phase-8.md), all under
+`src/vision_service/training/`:
+
+- `coco.py` (REQ-8.4/8.5) — `parse_coco_annotations()`/
+  `write_coco_annotations()`, converting COCO JSON to/from the existing
+  `Detection`/`BoundingBox` contracts. Hand-rolled against the standard
+  library, not `pycocotools` (see
+  [[ADR-009-annotation-format]]). Every parsed annotation's category is
+  validated against `detection.classes.ALLOWED_CLASSES` — the safety
+  boundary applies to training data, not only inference output.
+- `evaluate.py` (REQ-8.8/8.13/8.14) — `evaluate()`, per-class
+  precision/recall/average-precision via greedy IoU matching (a
+  rectangle-rule AP integral, a documented simplification of COCO's
+  101-point interpolation), a `flaggedClasses` section for classes
+  materially below the dataset's mean AP, and pass-through
+  `failureNotes`. Returns a plain camelCase `dict` matching
+  `apps/api`'s `EvaluationReportDto` exactly, ready to POST with no
+  translation.
+- `registry_client.py` (REQ-8.7/8.9/8.10) — a thin `httpx`-based client
+  against `apps/api`'s dataset/training-run/model-registry endpoints.
+  Every function accepts an injectable `client` (real or
+  `httpx.MockTransport`-backed fake), the same testability shape
+  `OnnxDetectorAdapter`'s `session` parameter already established.
+  Treats an unset `VISION_SERVICE_MODEL_REGISTRY_BASE_URL` as "not
+  configured" via `RegistryNotConfiguredError`, not a crash.
+- `train.py` (REQ-8.6/8.16) — `run_training_pipeline()`, a pure
+  orchestrator over an injectable `TrainerLike` (`train_and_export()`
+  returns a `TrainerOutput`); `publish_training_run()` uploads the
+  exported `.onnx` to the models bucket and reports the run + registers
+  the model via `registry_client`. The real implementation
+  (`_ultralytics_trainer.UltralyticsTrainer`) is imported lazily, only
+  from `train.py`'s `_default_trainer()`, so this module and its tests
+  never require `ultralytics`/`torch` to be installed.
+- `_ultralytics_trainer.py` (REQ-8.6) — the real Ultralytics-YOLO-backed
+  `TrainerLike`: converts ground-truth `Detection`s into YOLO's
+  per-image `.txt` label format, writes a `data.yaml`, trains, and
+  exports to ONNX matching [[ADR-006-detection-model-and-tracker]]'s
+  exact convention (opset 12, static square input) — Ultralytics'
+  own default export shape, no extra postprocessing changes needed.
+  **Never executed in this sandbox** — see Known gap below.
+- `scripts/run_training.py` — the CLI entry point (mirrors
+  `scripts/generate_samples.py`'s "batch job, not a deployed service"
+  shape), wiring COCO annotation loading, `run_training_pipeline()`,
+  and `publish_training_run()` together with argparse-driven
+  hyperparameters.
+- `detection/factory.py`'s `build_detector()` gained one new resolution
+  path (REQ-8.10): if `VISION_SERVICE_DETECTION_MODEL_PATH` is unset but
+  `VISION_SERVICE_MODEL_REGISTRY_BASE_URL` is configured,
+  `_resolve_production_model_path()` asks the registry for the current
+  production model and downloads it via `MinioClient` before
+  constructing `OnnxDetectorAdapter` — closing the promotion loop
+  [[ADR-006-detection-model-and-tracker]]'s rollback note only
+  described in reverse. Any registry/download failure falls back to
+  `NullDetectorAdapter`, never a startup crash.
+- `settings.py` gained `model_registry_base_url`,
+  `model_registry_api_token`, `model_registry_local_cache_path`, and
+  `minio_models_bucket` — all optional, "disabled not broken" defaults,
+  same pattern as every other optional dependency in this service.
+- 30+ new tests: `test_training_coco.py`, `test_training_evaluate.py`,
+  `test_training_registry_client.py` (against `httpx.MockTransport`,
+  no real HTTP), `test_training_train_pipeline.py` (REQ-8.16, a fake
+  `TrainerLike` — asserts the pipeline's shape/convention wiring into
+  `OnnxDetectorAdapter` and that a placeholder export file reaches real
+  `onnxruntime.InferenceSession` loading and fails there, not earlier),
+  and `test_detection_factory.py` (the new registry-resolution path,
+  fully monkeypatched).
+
+### Known gap: `ultralytics`/`torch` could not be installed or run in this sandbox
+
+Same class of network restriction as every prior phase's `uv sync`/
+`prisma generate`/GitHub-release-CDN issues (see this file's Phase 4/5
+Known gaps above): `ultralytics` pulls in `torch`, a multi-hundred-MB
+dependency this sandbox cannot fetch. `_ultralytics_trainer.py` is
+written and reviewed but has never actually trained or exported a real
+model — the same "no real `.onnx` model" gap Phase 5 already documented,
+now also covering the training side, not only inference. `train.py`'s
+own orchestration logic (`run_training_pipeline()`,
+`publish_training_run()`) is exercised for real via a fake `TrainerLike`
+(REQ-8.16), and `registry_client.py`/`coco.py`/`evaluate.py` are fully
+unit-tested without needing `ultralytics` at all — only the one file
+that does the real training/export is unverified. `uv sync`/`uv lock`
+must be re-run on a machine with network access to add `ultralytics`
+and `httpx` (promoted from dev-only) to `uv.lock`, then a real training
+run attempted against a real annotated dataset.
+
 ------------------------------------------------------------------------
 
 ## Related Notes
@@ -315,3 +402,6 @@ dependency-free by design, per [[ADR-006-detection-model-and-tracker]]).
   Phase 5 (AI Detection and Tracking).
 - [[Architecture_Overview]] — the Python Vision Worker container this
   app implements.
+- [[PRD-Phase-8]] — REQ-8.4 through REQ-8.10, REQ-8.16, implemented this update.
+- [[ADR-008-experiment-tracking-and-dataset-versioning]] — the in-house tracking/versioning decision `registry_client.py`/`train.py` implement.
+- [[ADR-009-annotation-format]] — the COCO JSON decision `training/coco.py` implements.

@@ -61,6 +61,8 @@ Phase 5.
 - [[ADR-005-event-schema-versioning]] — additive-only, per-eventType versioning for Kafka events (Phase 3, accepted).
 - [[ADR-006-detection-model-and-tracker]] — YOLOv8n/ONNX Runtime model choice, detector adapter interface, and in-house tracker (Phase 5, accepted).
 - [[ADR-007-map-library-choice]] — MapLibre GL JS + token-free OSM raster tiles (Phase 7, accepted).
+- [[ADR-008-experiment-tracking-and-dataset-versioning]] — in-house Postgres/MinIO experiment tracking and dataset versioning over MLflow/DVC (Phase 8, accepted).
+- [[ADR-009-annotation-format]] — COCO JSON as the annotation interchange format (Phase 8, accepted).
 - [[Initial_Risk_Register]] — top platform-level risks and mitigations.
 
 ## Roadmap and planning — what happens when
@@ -78,6 +80,7 @@ Phase 5.
 - [[PRD-Phase-6]] — Phase 6 expanded into full requirements (REQ-6.1–6.18).
 - [[PRD-Phase-7]] — Phase 7 (MVP slice) expanded into full requirements (REQ-7.1–7.9).
 - [[PRD-Phase-8]] — Phase 8 (post-MVP, full roadmap scope) expanded into full requirements (REQ-8.1–8.17).
+- [[PRD-Phase-9]] — Phase 9 (post-MVP, full roadmap scope) expanded into full requirements (REQ-9.1–9.18); flags two required ADRs (ADR-010, ADR-011), not yet drafted.
 
 ---
 
@@ -87,7 +90,7 @@ Phase 5.
   `#architecture`, `#quality-attributes`, `#technology`, `#repository`,
   `#standards`, `#risk`, `#adr`, `#roadmap`, `#sprint0`, `#mvp`, `#plan`,
   `#prd`, `#phase1`, `#phase4`, `#phase5`, `#phase6`, `#phase7`, `#phase8`,
-  `#mlops`, `#ai`, `#moc`. Use Obsidian's tag pane to
+  `#phase9`, `#mlops`, `#ai`, `#edge`, `#moc`. Use Obsidian's tag pane to
   filter by any of these.
 - **Related Notes** sections at the bottom of each note are the
   hand-curated edges of the graph; Obsidian's backlinks panel shows the

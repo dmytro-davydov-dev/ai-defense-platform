@@ -7,6 +7,20 @@ import { AppModule } from "./app.module";
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // apps/web (Vite dev server) is a different origin than apps/api, so
+  // the browser preflights every mutating request. Without this, Nest
+  // has no OPTIONS handler at all and the preflight 404s before the
+  // CORS check can even run. Auth is a stateless JWT sent via
+  // `Authorization` header (docs/security/Security_Baseline.md) — no
+  // cookies involved — so credentials don't need to be enabled here.
+  const corsOrigins = (
+    process.env["CORS_ORIGIN"] ||
+    `http://localhost:${process.env["WEB_PORT"] ?? 5173}`
+  )
+    .split(",")
+    .map((origin) => origin.trim());
+  app.enableCors({ origin: corsOrigins });
+
   // REQ-2.7: every controller input is DTO-validated; class-validator
   // decorators on the DTOs do the real work, this just wires it in
   // globally so no future controller can forget the pipe.

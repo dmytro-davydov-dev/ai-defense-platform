@@ -245,6 +245,62 @@ CRUD, identity/RBAC, upload URLs and audit logging incrementally.
   `20260714120000_kafka_event_platform` migration that doesn't exist
   under `apps/api/prisma/migrations/` yet.
 
+## Phase 8: dataset registry, experiment tracking, model registry
+
+Three new, platform-level modules (docs/mvp-plan/PRD-Phase-8.md) — none
+mission-scoped, so each is its own top-level controller alongside
+`MissionsModule`/`StorageModule`, not nested inside `MissionsModule`:
+
+- `datasets/` (REQ-8.1-8.3) — `DatasetsController`/`DatasetsService`/
+  `DatasetsRepository`. `POST /datasets` registers a dataset; the
+  service re-validates provenance/license non-emptiness itself (REQ-8.2)
+  regardless of DTO validation, as a defense-in-depth gate. `POST
+  /datasets/:id/splits` (REQ-8.3) runs `split.util.ts`'s
+  `generateDeterministicSplit()` — a pure, dependency-free seeded
+  Fisher-Yates shuffle (mulberry32 PRNG) — over a caller-supplied item
+  manifest, then writes the three resulting manifests to the new
+  `datasets` MinIO bucket (`StorageService.uploadText()`, a new
+  bucket-parameterized method alongside the existing mission-videos-only
+  upload/download-URL methods).
+- `training-runs/` (REQ-8.7/8.8/8.13/8.14) — the in-house experiment
+  tracker (see [[ADR-008-experiment-tracking-and-dataset-versioning]]).
+  `POST /training-runs` is called once by `apps/vision-service`'s
+  training script after a run completes or fails; `TrainingRunsService`
+  rejects a COMPLETED run whose `evaluationReport` is missing or has an
+  empty `perClass` array — REQ-8.8/8.13/8.14's bias/failure-visibility
+  requirements are enforced as a hard gate, not left optional.
+- `model-registry/` (REQ-8.9-8.12) — `ModelRegistryController`'s
+  `POST /models` registers an exported `.onnx` artifact against a
+  COMPLETED training run; `GET /models/production` is what
+  `detection/factory.py`'s new registry-resolution path queries
+  (REQ-8.10); `POST /models/:id/promote` and `POST /models/rollback`
+  both run inside one `prisma.$transaction` (demote the current
+  production model to STAGED, promote the target, write one
+  `AuditLog` row via the existing `AuditService` — REQ-8.12, the same
+  REQ-2.10 audit trail, not a parallel mechanism). Rollback with no
+  explicit `toVersionId` finds the most recently demoted former-
+  production model (`stage = STAGED AND promoted_at IS NOT NULL`,
+  ordered by `promoted_at DESC`) and re-promotes it. Deliberately
+  restricted to the `admin` role only (not `operator`) — a stricter
+  gate than this phase's own Open Questions minimum, since changing the
+  production model is a higher-consequence action than mission CRUD.
+- `Dataset`/`DatasetSplit`/`TrainingRun`/`ModelVersion` added to
+  `schema.prisma` — plain relational columns throughout (no
+  `Unsupported(...)` type, unlike `TelemetryPoint`), so once `prisma
+  generate` succeeds elsewhere these could move off `$queryRaw`/
+  `$executeRaw` onto generated delegates without a schema change; they
+  use raw SQL for now purely because of the same stale-client
+  limitation every model added since Phase 3 has.
+- `StorageService` gained `ensureBucket()`/`uploadText()`/
+  `downloadText()` (bucket-parameterized, unlike the existing
+  mission-videos-only methods) plus `getDatasetsBucket()`/
+  `getModelsBucket()` — two new buckets (`datasets`, `models`) created
+  alongside the missions bucket on `onModuleInit()`.
+- Unit tests: `split.util.spec.ts` (determinism, ratio/duplicate
+  validation), `datasets.service.spec.ts`, `training-runs.service.spec.ts`,
+  `model-registry.service.spec.ts` (promotion/demotion/rollback/audit
+  assertions, REQ-8.17).
+
 ------------------------------------------------------------------------
 
 ## Related Notes
@@ -259,3 +315,5 @@ CRUD, identity/RBAC, upload URLs and audit logging incrementally.
   app implements.
 - [[Observability_Baseline]] — the structured-logging helper this app
   consumes.
+- [[PRD-Phase-8]] — REQ-8.1-8.3, REQ-8.7, REQ-8.8, REQ-8.9-8.12, REQ-8.13, REQ-8.14 implemented here.
+- [[ADR-008-experiment-tracking-and-dataset-versioning]] — the tracking/versioning decision `training-runs/`/`datasets/` implement.

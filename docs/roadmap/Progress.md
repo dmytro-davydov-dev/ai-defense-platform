@@ -981,51 +981,167 @@ Phase 5's detector adapter contract and safety boundary
 
 ### Dataset registry and provenance
 
-- [ ] REQ-8.1 — dataset registry (Postgres metadata, MinIO-stored content)
-- [ ] REQ-8.2 — mandatory provenance/license metadata gate before training use
-- [ ] REQ-8.3 — deterministic, seeded train/validation/test split generation
+- [x] REQ-8.1 — dataset registry (Postgres metadata, MinIO-stored content) — `apps/api/src/datasets/` (`DatasetsController`/`DatasetsService`/`DatasetsRepository`), `Dataset` model in `schema.prisma`, hand-written migration `20260715190000_data_training_model_lifecycle`
+- [x] REQ-8.2 — mandatory provenance/license metadata gate before training use — `DatasetsService.register()` re-validates every required field's non-emptiness itself, independent of DTO validation
+- [x] REQ-8.3 — deterministic, seeded train/validation/test split generation — `split.util.ts`'s `generateDeterministicSplit()` (dependency-free mulberry32 PRNG + Fisher-Yates), `POST /datasets/:id/splits` writes the three resulting manifests to the new `datasets` MinIO bucket
 
 ### Annotation workflow
 
-- [ ] REQ-8.4 — annotation import/export utility (standard format ↔ `Detection`/`BoundingBox`)
-- [ ] REQ-8.5 — annotation validation against `ALLOWED_CLASSES` and bounding-box bounds
+- [x] REQ-8.4 — annotation import/export utility (COCO JSON ↔ `Detection`/`BoundingBox`) — `apps/vision-service/src/vision_service/training/coco.py`, hand-rolled (no `pycocotools`), per [[ADR-009-annotation-format]]
+- [x] REQ-8.5 — annotation validation against `ALLOWED_CLASSES` and bounding-box bounds — `coco.py`'s `parse_coco_annotations()` rejects any category outside `detection.classes.ALLOWED_CLASSES` and any out-of-bounds/non-positive bbox
 
 ### Experiment tracking and training pipeline
 
-- [ ] REQ-8.6 — YOLO training pipeline, ONNX export matching ADR-006's exact convention
-- [ ] REQ-8.7 — experiment tracker records hyperparameters, dataset/split version, metrics, git commit
-- [ ] REQ-8.8 — per-class evaluation report, threshold-based checks
+- [x] REQ-8.6 — YOLO training pipeline, ONNX export matching ADR-006's exact convention — `training/train.py`'s `run_training_pipeline()` (trainer-agnostic orchestrator) + `training/_ultralytics_trainer.py` (real Ultralytics-backed `TrainerLike`, lazily imported) — **written, not run**, see Known gaps
+- [x] REQ-8.7 — experiment tracker records hyperparameters, dataset/split version, metrics, git commit — `apps/api/src/training-runs/` (in-house tracker, [[ADR-008-experiment-tracking-and-dataset-versioning]]) + `training/registry_client.py`'s `report_training_run()`
+- [x] REQ-8.8 — per-class evaluation report, threshold-based checks — `training/evaluate.py`'s `evaluate()` (greedy IoU matching, rectangle-rule AP), `TrainingRunsService` rejects a COMPLETED run with a missing/empty report
 
 ### Model registry, promotion, and rollback
 
-- [ ] REQ-8.9 — model registry with lineage (training run, dataset version, evaluation report) and lifecycle stage
-- [ ] REQ-8.10 — promotion updates the active model reference with no code change
-- [ ] REQ-8.11 — rollback to any prior production version, same no-code-change property
-- [ ] REQ-8.12 — promotion/rollback produce an append-only audit record
+- [x] REQ-8.9 — model registry with lineage (training run, dataset version, evaluation report) and lifecycle stage — `apps/api/src/model-registry/`, `ModelVersion` model (CANDIDATE→STAGED→PRODUCTION→RETIRED), `ModelRegistryService.register()` requires the referenced training run be COMPLETED
+- [x] REQ-8.10 — promotion updates the active model reference with no code change — `POST /models/:id/promote`; `detection/factory.py`'s `_resolve_production_model_path()` queries `GET /models/production` and downloads the artifact when `VISION_SERVICE_DETECTION_MODEL_PATH` is unset (a restart re-resolves, per REQ-8.10's own "at startup" wording)
+- [x] REQ-8.11 — rollback to any prior production version, same no-code-change property — `POST /models/rollback` (explicit `toVersionId`, or automatic: most recently demoted former-production model via `stage = STAGED AND promoted_at IS NOT NULL ORDER BY promoted_at DESC`)
+- [x] REQ-8.12 — promotion/rollback produce an append-only audit record — both actions run inside one `prisma.$transaction` that also writes an `AuditLog` row via the existing `AuditService` (REQ-2.10's mechanism, not a new one)
 
 ### Bias and failure analysis
 
-- [ ] REQ-8.13 — flagged low-performing-class section in the evaluation report
-- [ ] REQ-8.14 — documented, human-written failure-case notes
+- [x] REQ-8.13 — flagged low-performing-class section in the evaluation report — `evaluate()`'s `flaggedClasses` (AP more than 20% relatively below the dataset mean), a required (never omitted) report field, enforced by `TrainingRunsService`
+- [x] REQ-8.14 — documented, human-written failure-case notes — `evaluate()`'s `failureNotes` parameter, passed through verbatim (never auto-inferred, per this phase's own non-goal)
 
 ### Testing
 
-- [ ] REQ-8.15 — unit tests: dataset-registry validation, split determinism, annotation conversion/validation
-- [ ] REQ-8.16 — fixture-based training pipeline test; exported model loads through unmodified `OnnxDetectorAdapter`
-- [ ] REQ-8.17 — promotion/rollback tests: audit record + resolved model path change
+- [x] REQ-8.15 — unit tests: dataset-registry validation, split determinism, annotation conversion/validation — `split.util.spec.ts`, `datasets.service.spec.ts`, `test_training_coco.py` — **written, reviewed, not run**, see Known gaps
+- [x] REQ-8.16 — fixture-based training pipeline test; exported model loads through unmodified `OnnxDetectorAdapter` — `test_training_train_pipeline.py`, a fake `TrainerLike` (no real Ultralytics/torch); asserts the pipeline's recorded `input_size`/class-count contract matches `onnx_detector.py`'s assumptions, and that the placeholder export file reaches real `onnxruntime.InferenceSession` loading and fails only there (`ModelLoadError`), not earlier — the same "fake session, no real bytes" boundary Phase 5 already documented
+- [x] REQ-8.17 — promotion/rollback tests: audit record + resolved model path change — `model-registry.service.spec.ts` (promotion demotes the prior production model, audits `model.promoted`/`model.rolled_back`, 404s with no prior version), `test_detection_factory.py` (registry-resolution path, fully monkeypatched)
 
 **Phase 8 exit:** all boxes above checked, plus the Definition of Done
-in [[PRD-Phase-8]] Section 8. **Status: not started** — PRD drafted
-only.
+in [[PRD-Phase-8]] Section 8. **Status: substantively complete** —
+every REQ-8.1–8.17 has real, reviewed code; nothing could be installed,
+compiled, or run end-to-end in this sandbox (same recurring limitation
+as every prior phase) — see Known gaps for what a normal dev machine
+still needs to confirm.
 
 ### Known gaps
 
-- `ADR-008` (experiment tracking/dataset versioning tooling) and
-  `ADR-009` (annotation format) are both required before their
-  respective implementation steps (per [[PRD-Phase-8]] Section 7) and
-  are not yet drafted.
-- `datasets/` and `models/` top-level folders named in
-  [[Repository_Structure]] do not exist in the repository yet.
+- **`ultralytics`/`torch` could not be installed in this sandbox** —
+  same network-restriction class as every prior phase's `uv sync`/
+  `prisma generate` gaps (`docs/python/Vision_Service_Shell.md`'s Phase
+  8 Known gap has full detail). `training/_ultralytics_trainer.py` is
+  written and reviewed but has never actually trained or exported a
+  real model — this is the training-side counterpart to Phase 5's
+  already-documented "no real `.onnx` model has been run through
+  `OnnxDetectorAdapter`" gap, not a new category of risk.
+- **`apps/api`'s new TypeScript (datasets/training-runs/model-registry
+  modules) could not be installed, linted, typechecked, built, or
+  tested in this sandbox** — same recurring `pnpm install`/stale-`dist/`
+  EPERM class of issue documented in every prior phase's Known gaps
+  (Phase 6/7). Every new file was manually re-reviewed against
+  `@ai-defense/ts-config`'s strict settings and the established
+  `$queryRaw`/`$executeRaw` repository pattern, the same process prior
+  phases used for their own uninstallable dependencies.
+- **`apps/vision-service`'s new Python (training/coco.py, evaluate.py,
+  registry_client.py, train.py) could not be run against this sandbox's
+  actual `pytest`/`ruff`** — same system-Python-3.10-vs-pinned-3.12 gap
+  as every prior phase. `httpx` was already a dev dependency (promoted
+  to runtime here); `ultralytics` is new and, per the gap above, not
+  installable here at all.
+- **`prisma generate`/`prisma migrate dev` could not run** — same
+  `binaries.prisma.sh` network-block as every model added since Phase
+  3. `Dataset`/`DatasetSplit`/`TrainingRun`/`ModelVersion` use
+  `$queryRaw`/`$executeRaw` for now purely because of this stale-client
+  limitation, not because any of the four tables need an
+  `Unsupported(...)` column (unlike `TelemetryPoint`) — once
+  regenerated, these could move to generated delegates without a schema
+  change.
+- No integration test yet exercises the new `apps/api` endpoints or the
+  training→registry→promotion flow against a real Postgres/MinIO/
+  running-`apps/api` instance — same no-docker limitation as every
+  prior phase's `*.e2e-spec.ts` files. Worth adding once a machine with
+  Docker and normal network access is available, alongside an actual
+  `uv lock` re-run and a real training run.
+- `VISION_SERVICE_MODEL_REGISTRY_API_TOKEN` (a bearer token an operator
+  obtains from `apps/api`'s existing login endpoint) is the only
+  authentication `training/registry_client.py` supports — this
+  reference implementation deliberately defers a real machine-identity/
+  service-account mechanism to Phase 10 ([[Security_Baseline]]), per
+  [[PRD-Phase-8]]'s own Open Questions.
+- `ModelRegistryController`'s promote/rollback routes are restricted to
+  the `admin` role only — a deliberate tightening beyond
+  [[PRD-Phase-8]]'s own stated minimum ("reuse operator/admin"), not yet
+  discussed with the user; flagging in case `operator` access to
+  promotion is actually wanted.
+
+---
+
+## Phase 9 — Edge Runtime
+
+Tracking [[PRD-Phase-9]] requirements (REQ-9.1–9.18). Unlike Phases
+1–7, this is **post-MVP** — [[MVP_Implementation_Plan]] scopes only
+Phases 1–7 into the MVP and explicitly defers Phase 9. Builds on
+Phase 1's `apps/edge-agent` stub (REQ-1.7), Phase 3's declared-but-
+unpopulated `aidefense.device-events` topic, Phase 5's detector-adapter
+contract and safety boundary ([[ADR-006-detection-model-and-tracker]]),
+and Phase 8's model registry/promotion (REQ-8.9–8.11). Implementation
+not yet started — two ADRs (`ADR-010`, `ADR-011`) must be drafted and
+accepted first, per [[PRD-Phase-9]] Section 7.
+
+### Edge agent runtime and video capture
+
+- [ ] REQ-9.1 — `apps/edge-agent` becomes a real, runnable process with `/health`/`/ready`
+- [ ] REQ-9.2 — video capture adapter produces frames in the Phase 4 `Frame` shape
+
+### Local inference
+
+- [ ] REQ-9.3 — detection/tracking reuses the exact Phase 5 `ALLOWED_CLASSES` enforcement (strategy resolved by `ADR-010`)
+- [ ] REQ-9.4 — ONNX Runtime CPU execution mandatory; TensorRT strictly optional behind an adapter
+
+### Offline buffering and store-and-forward synchronization
+
+- [ ] REQ-9.5 — durable local SQLite event buffer survives process restarts
+- [ ] REQ-9.6 — synchronization client uploads buffered events once connectivity returns
+- [ ] REQ-9.7 — synchronization is idempotent on the receiving side
+- [ ] REQ-9.8 — bounded-storage/backpressure policy for long offline periods
+
+### Device identity and secure sync
+
+- [ ] REQ-9.9 — device-scoped credential distinct from an operator JWT (mechanism resolved by `ADR-011`)
+- [ ] REQ-9.10 — every synced event is attributable to a specific device identity
+
+### Health reporting and observability
+
+- [ ] REQ-9.11 — device health events published to `aidefense.device-events`
+- [ ] REQ-9.12 — health/device events propagate correlation IDs
+
+### Remote model deployment and rollback
+
+- [ ] REQ-9.13 — edge agent resolves its active model from Phase 8's model registry
+- [ ] REQ-9.14 — promoted model deployable to the edge with no code change; rollback reachable the same way
+- [ ] REQ-9.15 — model download to the edge is bandwidth-aware
+
+### Bandwidth-aware upload
+
+- [ ] REQ-9.16 — synchronization prioritizes smaller/higher-value payloads under constrained bandwidth
+
+### Testing
+
+- [ ] REQ-9.17 — unit tests: buffer durability, sync idempotency, upload prioritization
+- [ ] REQ-9.18 — integration/fixture test: offline→buffer→reconnect→sync flow
+
+**Phase 9 exit:** all boxes above checked, plus the Definition of Done
+in [[PRD-Phase-9]] Section 8. **Status: not started** — planning only.
+
+### Known gaps
+
+- `ADR-010` (edge runtime language/inference strategy) and `ADR-011`
+  (device identity/sync transport) are not yet drafted — [[PRD-Phase-9]]
+  Section 7 flags both as required before their respective
+  implementation steps, and Section 2/11 deliberately leave the
+  TypeScript-vs-Python question for `apps/edge-agent` unresolved rather
+  than assuming an answer.
+- No real NVIDIA Jetson/TensorRT hardware is available to validate this
+  phase's hardware-specific claims once implementation starts — flagged
+  in [[PRD-Phase-9]]'s Non-goals, expected to recur as a Known gap here
+  too, same category as every prior phase's sandbox-hardware limitations.
 
 ---
 
@@ -1034,6 +1150,9 @@ only.
 Append one line per completed task, newest first. Format:
 `YYYY-MM-DD — REQ-x.x or free text — one-line note`.
 
+- 2026-07-15 — bugfix — `apps/api/src/main.ts` never called `app.enableCors()`, so any browser request from `apps/web`'s Vite dev server (`localhost:5173`) to `apps/api` (`localhost:3000`) — e.g. `POST /auth/register` — failed: the preflight `OPTIONS` request 404'd (no route registered without CORS enabled) before the actual request could even be blocked by the missing `Access-Control-Allow-Origin` header. Confirmed nothing in [[Security_Baseline]] or elsewhere in the knowledge base documented CORS as intentionally deferred — the websocket gateway (`mission-events.gateway.ts`) already had its own `cors: { origin: true }`, the plain HTTP API just never got the equivalent. Fixed by adding `app.enableCors({ origin: corsOrigins })`, sourced from a new `CORS_ORIGIN` env var (comma-separated, documented in `.env.example`) defaulting to `http://localhost:${WEB_PORT}`. `credentials` left off since auth is a stateless JWT via `Authorization` header, no cookies. Also wired `WEB_PORT`/`CORS_ORIGIN` into the `api` service's `environment:` block in `infrastructure/compose/docker-compose.yml` — without this the container never saw `WEB_PORT` at all, so the fallback would've silently ignored a custom `WEB_PORT` in `.env`. Verified `tsc --noEmit` clean; not runnable end-to-end in this sandbox (no docker).
+- 2026-07-15 — Phase 9 planning — Drafted [[PRD-Phase-9]] (REQ-9.1–9.18), scoped against the roadmap's full "Phase 9 — Edge Runtime" entry — post-MVP, like Phase 8 ([[MVP_Implementation_Plan]] defers Phase 9). Covers turning `apps/edge-agent`'s Phase 1 no-op stub into a real process: a video capture adapter, local inference reusing Phase 5's exact `ALLOWED_CLASSES` safety boundary, a durable SQLite offline event buffer, idempotent store-and-forward synchronization, a minimal device identity distinct from an operator JWT, device health reporting finally giving Phase 3's declared-but-unpopulated `aidefense.device-events` topic a real producer, and remote model deployment/rollback built on Phase 8's existing model registry rather than a new one. Flags two required ADRs, next numbers `ADR-010` (edge runtime language/inference strategy — a genuine unresolved tension, since `apps/edge-agent` was scaffolded in TypeScript/Node in Phase 1 while the entire Phase 5 detector-adapter contract is Python) and `ADR-011` (device identity and synchronization transport), neither yet drafted; deliberately did not guess at either answer, per this project's research-first instruction. Explicit non-goals: full mTLS/PKI device identity (Phase 10), Kubernetes-orchestrated edge fleets (Phase 12), any `ALLOWED_CLASSES` expansion, autonomous engagement logic, and real Jetson/TensorRT hardware validation (no such hardware available in this sandbox, same recurring limitation class as every prior phase). Phase 9 checklist added above, all unchecked — implementation not yet started.
+- 2026-07-15 — REQ-8.1–8.17 implemented — Phase 8 (Data, Training and Model Lifecycle, post-MVP) built end-to-end. Drafted and accepted [[ADR-008-experiment-tracking-and-dataset-versioning]] (in-house Postgres/MinIO tracking over MLflow/DVC) and [[ADR-009-annotation-format]] (COCO JSON, hand-rolled, no `pycocotools`) first, per the PRD's Section 7 requirement. Backend (`apps/api`): `Dataset`/`DatasetSplit`/`TrainingRun`/`ModelVersion` added to `schema.prisma` (plain relational columns, no `Unsupported(...)` type needed) plus hand-written migration `20260715190000_data_training_model_lifecycle`; three new standalone modules — `datasets/` (register with REQ-8.2's provenance/license gate re-validated at the service layer, `split.util.ts`'s dependency-free seeded-shuffle `generateDeterministicSplit()`, `POST /datasets/:id/splits` writing three manifests to a new `datasets` MinIO bucket), `training-runs/` (the in-house experiment tracker, rejecting a COMPLETED run with a missing/empty evaluation report), `model-registry/` (`POST /models`, `GET /models/production` for REQ-8.10's registry-resolution path, `POST /models/:id/promote`/`POST /models/rollback` — both inside one `prisma.$transaction` that demotes the prior production model and writes one `AuditLog` row via the existing `AuditService`, REQ-8.12 reusing REQ-2.10's mechanism; restricted to the `admin` role only, a deliberate tightening beyond the PRD's stated minimum). `StorageService` gained bucket-parameterized `ensureBucket()`/`uploadText()`/`downloadText()` plus `getDatasetsBucket()`/`getModelsBucket()`. Python (`apps/vision-service`): new `training/` package — `coco.py` (REQ-8.4/8.5, COCO JSON ↔ `Detection`/`BoundingBox`, validated against `ALLOWED_CLASSES` and image bounds), `evaluate.py` (REQ-8.8/8.13/8.14, per-class precision/recall/AP via greedy IoU matching, a `flaggedClasses` section, pass-through human `failureNotes`), `registry_client.py` (REQ-8.7/8.9/8.10, an injectable-client `httpx` wrapper around `apps/api`'s new endpoints), `train.py` (REQ-8.6/8.16, a trainer-agnostic `run_training_pipeline()`/`publish_training_run()` orchestrator) and `_ultralytics_trainer.py` (the real Ultralytics-backed `TrainerLike`, lazily imported so no other Phase 8 module requires `ultralytics`/`torch`). `detection/factory.py`'s `build_detector()` gained a registry-resolution path (REQ-8.10): unset `VISION_SERVICE_DETECTION_MODEL_PATH` + a configured registry now downloads and loads the current production model, falling back to `NullDetectorAdapter` on any failure — closing the loop [[ADR-006-detection-model-and-tracker]]'s rollback note only described in reverse; that ADR's Review date section updated to record this. Added `scripts/run_training.py` (CLI entry point, mirrors `scripts/generate_samples.py`'s batch-job shape). Created top-level `datasets/`/`models/` folders (README + `.gitkeep`, `.gitignore`d otherwise) per [[Repository_Structure]]'s existing rule; added `MINIO_DATASETS_BUCKET`/`MINIO_MODELS_BUCKET`/`VISION_SERVICE_MODEL_REGISTRY_BASE_URL`/`VISION_SERVICE_MODEL_REGISTRY_API_TOKEN` to `.env.example` and `infrastructure/compose/docker-compose.yml`. Updated [[Architecture_Overview]]'s MinIO section (datasets/model artifacts now real, same transition Phase 7 made for PostGIS), [[Detection_And_Tracking]], [[API_Shell]], [[Vision_Service_Shell]]. Wrote unit tests throughout (`split.util.spec.ts`, `datasets.service.spec.ts`, `training-runs.service.spec.ts`, `model-registry.service.spec.ts` for REQ-8.17's promotion/rollback/audit assertions; `test_training_coco.py`, `test_training_evaluate.py`, `test_training_registry_client.py` against `httpx.MockTransport`, `test_training_train_pipeline.py` for REQ-8.16 against a fake `TrainerLike`, `test_detection_factory.py` for the new registry-resolution path) — all written and manually reviewed against this repo's strict TS/Python conventions, **none run**: same recurring sandbox limitations as every prior phase (`pnpm install`/stale-`dist/` EPERM for `apps/api`; system Python 3.10 vs pinned 3.12 for `apps/vision-service`; `prisma generate` blocked; and, new this phase, `ultralytics`/`torch` could not be installed at all — the training-side counterpart to Phase 5's already-documented "no real `.onnx` model" gap). See this phase's Known gaps for the full list.
 - 2026-07-15 — Phase 8 planning — Drafted [[PRD-Phase-8]] (REQ-8.1–8.17), scoped against the roadmap's full "Phase 8 — Data, Training and Model Lifecycle" entry — the first phase explicitly outside MVP scope ([[MVP_Implementation_Plan]] defers Phase 8; [[PRD-Phase-7]] was the last MVP-scoped phase). Covers a Postgres-backed dataset registry with mandatory provenance/license metadata, deterministic seeded train/validation/test splits, an annotation import/export utility built on a standard format (not a custom UI), a YOLO training pipeline exporting ONNX in the exact shape [[ADR-006-detection-model-and-tracker]] already committed `OnnxDetectorAdapter` to, experiment tracking (MLflow or equivalent), per-class evaluation reports with a flagged low-performing-class section and human-written failure notes (operationalizing [[Initial_Risk_Register]]'s "model accuracy mistaken for certainty" mitigation), and a model registry with audited promotion/rollback requiring no code change to `vision-service`. Explicitly does not expand `detection/classes.py`'s `ALLOWED_CLASSES` safety allow-list. Flags two required ADRs, next numbers `ADR-008` (experiment tracking/dataset versioning tooling) and `ADR-009` (annotation format), neither yet drafted. Phase 8 checklist added below, all unchecked — implementation not yet started.
 - 2026-07-15 — REQ-7.1–7.9 implemented — Phase 7 (GIS and Telemetry, MVP slice) built end-to-end. Backend: `apps/api/src/telemetry/` — `telemetry-parser.ts` (CSV and GeoJSON `FeatureCollection<Point>` auto-detected by content, rejects malformed rows/out-of-order timestamps), `telemetry.repository.ts` (`$queryRaw`/`$executeRaw` against a real PostGIS `geography(Point, 4326)` column via `ST_MakePoint`/`ST_X`/`ST_Y`, batched in one `$transaction`), `telemetry.service.ts`, `telemetry.module.ts`; `TelemetryPoint` added to `schema.prisma` using Prisma's `Unsupported(...)` type (no generated delegate exists for this table, by design, not sandbox limitation) plus the hand-written `20260715150000_gis_telemetry_platform` migration (GIST index included for the roadmap's deferred spatial-query scope). `MissionsController` gained `POST`/`GET /missions/:id/telemetry` (multipart upload via `FileInterceptor`, using a narrow hand-rolled file type instead of adding an unverifiable `@types/multer` dependency). `TelemetryResponseDto` returns a GeoJSON `Feature<LineString>` with `properties.approximate: true` baked into the contract (REQ-7.7 as an API guarantee, not just a UI convention). Drafted and accepted [[ADR-007-map-library-choice]] first (MapLibre GL JS over Mapbox, token-free OSM raster tiles), per the PRD's Section 7 requirement. Frontend: `maplibre-gl` added to `apps/web/package.json`; `features/telemetry/nearestInTime.ts` (pure nearest-neighbor matching, with its video/telemetry start-alignment assumption documented explicitly — the one real modeling caveat this phase introduces); `MissionMap.tsx` (direct MapLibre integration, no wrapper library, matching `VideoPlayerWithOverlay`'s existing style — route line, detection markers, current-position marker, persistent "Approximate position" chip); `TelemetryUploadPanel.tsx`; `VideoPlayerWithOverlay` gained an `onTimeUpdate` prop lifting playback position up to `MissionDetailPage`, which now also renders `MissionMap`/`TelemetryUploadPanel`. Extended `e2e/mission-workflow.spec.ts` (REQ-7.9) with an inline in-memory CSV fixture rather than a new repo file. Verified in this sandbox: `apps/api`'s new/changed files are clean under `tsc --noEmit` and `eslint` (zero errors attributable to this phase — the only remaining errors anywhere in `apps/api` are Phase 6's pre-existing, already-documented `@nestjs/websockets`/`socket.io` gap); `jest` still can't run at all here (same pre-existing sandbox-wide `ts-jest` resolution failure, reproduced against an untouched file to confirm); `nest build` hits the same recurring stale-`dist/`-EPERM issue as every prior phase. `apps/web`'s dependency-free new file (`nearestInTime.ts`/`.test.ts`) lints and typechecks clean; everything depending on `maplibre-gl`/MUI/RTK (still uninstallable here, same `pnpm install` EPERM block as Phase 6, re-confirmed with a fresh attempt) was instead manually re-reviewed line-by-line against `@ai-defense/ts-config`'s strict settings; `vitest` itself can't even start in this sandbox (`Cannot find module '@rollup/rollup-linux-arm64-gnu'`, a separate, known npm/rollup optional-dependency bug, unrelated to this phase's code). Updated [[Web_Shell]], [[Architecture_Overview]]'s PostGIS section (geospatial data is now real, not aspirational), and [[Technology_Decisions]] (MapLibre GL JS entry).
 - 2026-07-15 — Phase 7 planning — Drafted [[PRD-Phase-7]] (REQ-7.1–7.9), scoped to [[MVP_Implementation_Plan]]'s "Phase 7 (MVP slice)": a PostGIS-backed telemetry table (raw-SQL migration, no native Prisma geometry type — same `$queryRaw`/`$executeRaw` pattern as `OutboxRepository`/`ProcessedEventsRepository`/`DetectionsRepository`), a batch CSV/GeoJSON telemetry ingestion endpoint and a GeoJSON read endpoint, a new MapLibre GL JS map container in `apps/web` (chosen over Mapbox to avoid a mandatory paid token), a mission route + nearest-in-time detection markers, basic video-scrub-to-map sync (nearest-neighbor, not interpolated), and a hard requirement that every rendered geolocation is visibly labeled approximate/estimated per the roadmap's Phase 7 safety constraint. Flags one required ADR (`ADR-007`, map library choice — MapLibre vs Mapbox — the last of the seven ADRs [[MVP_Implementation_Plan]] names for the MVP, not yet drafted). Explicitly defers geofences, full spatial queries, uncertainty-radius indicators, multi-mission overlay, and true interpolation-based replay to the roadmap's fuller Phase 7 scope, past the MVP. Noted that Phase 6 did not in fact build a map container ([[Web_Shell]]: "No map/GIS rendering — Phase 7"), so this phase starts that component from scratch despite the MVP plan's framing. Phase 7 checklist added below, all unchecked — implementation not yet started.
@@ -1073,6 +1192,9 @@ Append one line per completed task, newest first. Format:
 - [[PRD-Phase-5]] — source of the Phase 5 REQ checklist above.
 - [[PRD-Phase-7]] — source of the Phase 7 REQ checklist above.
 - [[PRD-Phase-8]] — source of the Phase 8 REQ checklist above (post-MVP).
+- [[ADR-008-experiment-tracking-and-dataset-versioning]] — Phase 8's tracking/versioning tooling decision.
+- [[ADR-009-annotation-format]] — Phase 8's annotation format decision.
+- [[PRD-Phase-9]] — source of the Phase 9 REQ checklist above (post-MVP); flags `ADR-010`/`ADR-011`, not yet drafted.
 - [[ADR-004-nestjs-orm]] — ORM decision blocking Phase 2's REQ-2.1.
 - [[ADR-005-event-schema-versioning]] — Phase 3's event schema versioning policy.
 - [[ADR-006-detection-model-and-tracker]] — Phase 5's model/adapter/tracker decisions.

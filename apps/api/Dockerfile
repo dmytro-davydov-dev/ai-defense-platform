@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 # Phase 1 shell image — builds and starts the NestJS control-plane API
 # with /health and /ready endpoints. See docs/mvp-plan/PRD-Phase-1.md.
 # Node 22+ is required (not just Phase 1's Node 20): the generated
@@ -12,7 +13,30 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* .npmrc ./
 COPY packages ./packages
 COPY apps/api ./apps/api
 RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
-RUN pnpm install --frozen-lockfile --filter @ai-defense/api...
+# `docker compose ... up --build` builds all four Node/Python images
+# concurrently, each running its own `pnpm install` against ~1,300+
+# packages with no shared store between them — on a resource-constrained
+# Docker Desktop VM this reliably killed the install mid-download with
+# no pnpm-level error text at all (just "exit code: 1" after downloads
+# stalled around 99% complete — a classic OOM-kill signature, not a
+# lockfile/registry error). Mounting a persistent, shared pnpm content
+# store across builds means only the first build actually downloads
+# anything; every build after (including re-runs of this same service)
+# reuses it instead of re-fetching ~1,300 packages from scratch each
+# time — see docs/roadmap/Progress.md Known gaps.
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile --filter @ai-defense/api...
+
+# @ai-defense/event-schemas and @ai-defense/observability are
+# workspace:* dependencies — always symlinked into
+# apps/api/node_modules (workspace-protocol deps are never hoisted like
+# registry packages, regardless of .npmrc's node-linker setting), and
+# `nest build` below only compiles apps/api's own src/, not these. Build
+# them explicitly so the runtime stage has real, fresh compiled dist/ to
+# copy in — see docs/roadmap/Progress.md Known gaps for how this was
+# caught (the first real `docker compose up --build` outside the
+# authoring sandbox).
+RUN pnpm --filter @ai-defense/event-schemas --filter @ai-defense/observability run build
 
 WORKDIR /workspace/apps/api
 # REQ-2.1/2.3: generates apps/api/generated/prisma/ from schema.prisma —
@@ -24,13 +48,27 @@ RUN pnpm exec prisma generate
 RUN pnpm build
 
 FROM node:22-slim AS runtime
-WORKDIR /app
+# Kept as /workspace/apps/api (not flattened to /app) so every relative
+# symlink pnpm created at build time still resolves identically at
+# runtime: apps/api/node_modules/@ai-defense/observability points at
+# ../../../../packages/observability, and apps/api/node_modules's own
+# non-workspace symlinks point up into node_modules/.pnpm — both only
+# work if the same directory depth from /workspace exists here too.
+# (An earlier attempt merged apps/api/node_modules onto a flattened
+# /app/node_modules — BuildKit refused with "cannot replace to
+# directory ... with file" wherever a package was a real directory in
+# one copy and a symlink in the other, e.g. @types/pg. Preserving the
+# original tree instead of merging two copies onto the same path avoids
+# that entirely — see docs/roadmap/Progress.md Known gaps.)
+WORKDIR /workspace/apps/api
 ENV NODE_ENV=production
 ENV PORT=3000
 
+COPY --from=build /workspace/node_modules /workspace/node_modules
+COPY --from=build /workspace/packages /workspace/packages
+COPY --from=build /workspace/apps/api/node_modules ./node_modules
 COPY --from=build /workspace/apps/api/dist ./dist
 COPY --from=build /workspace/apps/api/package.json ./package.json
-COPY --from=build /workspace/node_modules ./node_modules
 
 EXPOSE 3000
 # Not "dist/main.js": apps/api/tsconfig.json sets rootDir to "./"

@@ -24,6 +24,26 @@ dependencies = [
   # tracker-specific dependency — the in-house tracker
   # (detection/tracker.py) is dependency-free by design (ADR-006).
   "onnxruntime>=1.19.0",
+  # Phase 8 (docs/mvp-plan/PRD-Phase-8.md REQ-8.7/8.9/8.10,
+  # docs/adr/ADR-008-experiment-tracking-and-dataset-versioning.md):
+  # `training/registry_client.py`'s HTTP client against apps/api's
+  # dataset/training-run/model-registry endpoints, and
+  # `detection/factory.py`'s production-model resolution. Promoted from
+  # dev-only (it was already here for FastAPI's own test client) to a
+  # runtime dependency.
+  "httpx>=0.28.1",
+  # Phase 8 (REQ-8.6): YOLO training + ONNX export. Deliberately not
+  # exercised end-to-end in this sandbox — `ultralytics` pulls in
+  # `torch`, a multi-hundred-MB dependency this sandbox's network
+  # restrictions (see docs/roadmap/Progress.md's recurring Known gaps)
+  # make unreliable to install and verify here, the same class of risk
+  # docs/adr/ADR-006-detection-model-and-tracker.md already flagged for
+  # ByteTrack/BoT-SORT. `training/train.py` isolates every `ultralytics`
+  # import inside the one function that needs it
+  # (`_default_trainer`), so every other Phase 8 module (coco.py,
+  # evaluate.py, registry_client.py) and their tests import and run
+  # cleanly without `ultralytics` ever being installed.
+  "ultralytics>=8.3.0",
 ]
 
 [dependency-groups]
@@ -32,7 +52,6 @@ dev = [
   "pytest>=8.3.4",
   "pytest-asyncio>=0.24.0",
   "pytest-cov>=6.0.0",
-  "httpx>=0.28.1",
 ]
 
 [build-system]
@@ -92,6 +111,10 @@ quote-style = "double"
 # vocabulary now.
 "src/vision_service/frames/models.py" = ["N815"]
 "src/vision_service/metadata/extract.py" = ["N815"]
+# Phase 8: same UP017 rationale as above — `datetime.UTC` (3.11+) would
+# break at runtime on this sandbox's system Python 3.10; `timezone.utc`
+# is the deliberate, portable choice, not an oversight.
+"scripts/run_training.py" = ["UP017"]
 
 [tool.coverage.run]
 source = ["src/vision_service"]

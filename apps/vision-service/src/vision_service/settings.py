@@ -41,6 +41,15 @@ class Settings(BaseSettings):
     minio_missions_bucket: str = Field(
         default="mission-videos", validation_alias="MINIO_MISSIONS_BUCKET"
     )
+    # Phase 8 (docs/mvp-plan/PRD-Phase-8.md REQ-8.9): same bucket name
+    # apps/api's StorageService.getModelsBucket() defaults to — the
+    # training script (training/train.py's publish_training_run())
+    # uploads exported `.onnx` artifacts here directly, the same
+    # "each service credentials its own MinIO client against a shared
+    # bucket name" pattern minio_missions_bucket already established.
+    minio_models_bucket: str = Field(
+        default="models", validation_alias="MINIO_MODELS_BUCKET"
+    )
 
     # Phase 5 (REQ-5.2/5.3): VISION_SERVICE_-prefixed since these are
     # vision-service-specific, unlike KAFKA_BROKERS/MINIO_* above which
@@ -54,6 +63,25 @@ class Settings(BaseSettings):
     detection_model_path: str = Field(default="")
     detection_confidence_threshold: float = Field(default=0.35, ge=0.0, le=1.0)
     detection_input_size: int = Field(default=640, gt=0)
+
+    # Phase 8 (docs/mvp-plan/PRD-Phase-8.md REQ-8.7/8.9/8.10,
+    # docs/adr/ADR-008-experiment-tracking-and-dataset-versioning.md):
+    # the in-house model registry `training/registry_client.py` talks
+    # to, and `detection/factory.py` queries for the current production
+    # model when `detection_model_path` is unset. Both default to ""
+    # (not a hard failure at settings-construction time) — same
+    # "disabled, not broken" pattern as kafka_brokers/minio_root_user
+    # above: an unconfigured registry means "resolve to
+    # NullDetectorAdapter," not a startup crash.
+    model_registry_base_url: str = Field(default="")
+    model_registry_api_token: str = Field(default="")
+    # Local path `detection/factory.py` downloads a registry-resolved
+    # production model to before constructing OnnxDetectorAdapter —
+    # mirrors commands_consumer.py's use of a local temp path for a
+    # MinIO-downloaded video (REQ-4.10), same download-then-load shape.
+    model_registry_local_cache_path: str = Field(
+        default="/tmp/vision-service-production-model.onnx"
+    )
 
 
 settings = Settings()

@@ -243,6 +243,142 @@ model TelemetryPoint {
   @@map("telemetry_points")
 }
 
+// Phase 8 (docs/mvp-plan/PRD-Phase-8.md REQ-8.1/8.2): dataset registry
+// metadata. Dataset *content* lives in MinIO under a
+// `datasets/{id}/` prefix (docs/adr/ADR-008-experiment-tracking-and-dataset-versioning.md);
+// this table holds only the catalog entry. `provenance`/`license` are
+// required (NOT NULL, no default) rather than optional — REQ-8.2's
+// validation gate is enforced at the application layer
+// (DatasetsService) before a row is ever inserted, so a row existing at
+// all is itself evidence the gate was satisfied, the same
+// enforce-above-the-database posture Mission_State_Machine.md already
+// documents for mission transitions.
+//
+// NOTE: like every model added since Phase 3, this could not be
+// migrated via `prisma migrate dev`/`prisma generate` in this sandbox
+// (binaries.prisma.sh network-blocked — see docs/roadmap/Progress.md
+// Known gaps). Unlike TelemetryPoint, this model needs no
+// `Unsupported(...)` column — plain relational columns throughout — so
+// once `prisma generate` runs on a machine with network access,
+// `DatasetsRepository` could move to the generated `dataset` delegate
+// without a schema change. It still uses `$queryRaw`/`$executeRaw` for
+// now, purely because of the stale-client limitation, not an
+// architectural one. Hand-written SQL:
+// apps/api/prisma/migrations/20260715190000_data_training_model_lifecycle/migration.sql.
+model Dataset {
+  id               String   @id @default(uuid())
+  name             String
+  version          String
+  storageLocation  String   @map("storage_location")
+  source           String
+  collectionMethod String   @map("collection_method")
+  license          String
+  provenanceNotes  String   @map("provenance_notes")
+  createdById      String?  @map("created_by_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  splits           DatasetSplit[]
+  trainingRuns     TrainingRun[]
+
+  @@unique([name, version])
+  @@map("datasets")
+}
+
+// REQ-8.3: a deterministic, seeded train/validation/test split over a
+// dataset's manifest (a newline-delimited item-id list uploaded per
+// `POST /datasets/:id/splits`, mirroring the telemetry file-upload UX —
+// see telemetry.types.ts). The three resulting item lists are written
+// back to MinIO as their own manifest files (object keys recorded
+// below) so a training run can fetch exactly the same three lists
+// later without recomputing anything — recomputing from the seed alone
+// would still be deterministic, but re-reading the persisted manifest
+// avoids relying on the *input* manifest's on-disk order never
+// changing between calls.
+model DatasetSplit {
+  id                          String   @id @default(uuid())
+  datasetId                   String   @map("dataset_id")
+  dataset                     Dataset  @relation(fields: [datasetId], references: [id])
+  seed                        Int
+  trainRatio                  Float    @map("train_ratio")
+  validationRatio             Float    @map("validation_ratio")
+  testRatio                   Float    @map("test_ratio")
+  trainCount                  Int      @map("train_count")
+  validationCount             Int      @map("validation_count")
+  testCount                   Int      @map("test_count")
+  trainManifestObjectKey      String   @map("train_manifest_object_key")
+  validationManifestObjectKey String   @map("validation_manifest_object_key")
+  testManifestObjectKey       String   @map("test_manifest_object_key")
+  createdAt                   DateTime @default(now()) @map("created_at")
+  trainingRuns                TrainingRun[]
+
+  @@index([datasetId])
+  @@map("dataset_splits")
+}
+
+// REQ-8.7/8.8/8.13/8.14: one row per training run, written once by
+// `apps/vision-service`'s training script (`training/registry_client.py`)
+// after the run completes — this is the "experiment tracker"
+// docs/adr/ADR-008-experiment-tracking-and-dataset-versioning.md
+// decided to build in-house rather than adopt MLflow. `metrics` and
+// `evaluationReport` are JSON rather than normalized columns: their
+// shape (per-epoch series, per-class precision/recall/mAP, flagged
+// low-performing classes, human-written failure notes) is read/written
+// wholesale by exactly one producer and one set of readers, with no
+// query need finer than "this run's report", so normalizing further
+// would add join complexity with no corresponding benefit — consistent
+// with Guiding_Principles.md's "Simplicity over Complexity".
+model TrainingRun {
+  id               String        @id @default(uuid())
+  datasetId        String        @map("dataset_id")
+  dataset          Dataset       @relation(fields: [datasetId], references: [id])
+  datasetSplitId   String        @map("dataset_split_id")
+  datasetSplit     DatasetSplit  @relation(fields: [datasetSplitId], references: [id])
+  gitCommit        String?       @map("git_commit")
+  hyperparameters  Json
+  // "RUNNING" | "COMPLETED" | "FAILED" — a plain string, not an enum,
+  // mirroring AuditLog.action's existing plain-string convention for a
+  // small, non-relational status field.
+  status           String
+  metrics          Json
+  evaluationReport Json?         @map("evaluation_report")
+  startedAt        DateTime      @map("started_at")
+  completedAt      DateTime?     @map("completed_at")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  modelVersions    ModelVersion[]
+
+  @@index([datasetId])
+  @@map("training_runs")
+}
+
+enum ModelStage {
+  CANDIDATE
+  STAGED
+  PRODUCTION
+  RETIRED
+}
+
+// REQ-8.9-8.12: one row per exported `.onnx` artifact (MinIO-stored
+// under `models/{id}/`), with lineage back to the training run that
+// produced it. `stage` is the only mutable column after creation —
+// REQ-8.10/8.11's promote/rollback actions update it (and
+// `promotedAt`/`promotedById`), each such change also writing an
+// AuditLog row via the existing AuditService (REQ-8.12), the same
+// append-only-audit-alongside-a-mutable-state-change shape
+// MissionsService.transition() already established for REQ-2.8.
+model ModelVersion {
+  id            String      @id @default(uuid())
+  trainingRunId String      @map("training_run_id")
+  trainingRun   TrainingRun @relation(fields: [trainingRunId], references: [id])
+  objectKey     String      @map("object_key")
+  stage         ModelStage  @default(CANDIDATE)
+  createdAt     DateTime    @default(now()) @map("created_at")
+  promotedAt    DateTime?   @map("promoted_at")
+  promotedById  String?     @map("promoted_by_id")
+
+  @@index([stage])
+  @@map("model_versions")
+}
+
 // REQ-3.8: idempotent consumption on both sides of the broker. One row
 // per (eventId, consumer) — `apps/api` and `apps/vision-service` each
 // record their own consumer name, so the same eventId can be safely

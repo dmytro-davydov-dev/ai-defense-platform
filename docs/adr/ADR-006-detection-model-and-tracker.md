@@ -161,6 +161,20 @@ and postprocessing needs correction; tracker accuracy becomes a
 demonstrated problem; or Phase 8's model registry needs a
 detector-adapter contract richer than the one defined here.
 
+**Update (Phase 8):** [[PRD-Phase-8]] implemented the model registry
+named above and it did **not** need a richer contract — REQ-8.6
+constrains training/export to this ADR's exact shape (opset ≥ 12,
+static 640×640 input, standard Ultralytics `(1, 4+80, N)` output) so a
+promoted model loads through the unmodified `OnnxDetectorAdapter`
+defined here. `detection/factory.py`'s `build_detector()` gained one new
+resolution path (REQ-8.10: ask the registry for a production model
+before falling back to `NullDetectorAdapter`), but `OnnxDetectorAdapter`
+itself, its constructor signature, and its postprocessing are unchanged
+by Phase 8. The "no real `.onnx` model has been run through this
+adapter" risk below is also unchanged — Phase 8 could not install
+`ultralytics`/`torch` in this sandbox either (see
+[[Detection_And_Tracking]]'s "What's not real yet").
+
 ---
 
 ## Related Notes
@@ -170,3 +184,5 @@ detector-adapter contract richer than the one defined here.
 - [[Coding_Standards]] — ADR trigger and Python conventions this decision follows.
 - [[Repository_Structure]] — the model-binary rule this decision respects.
 - [[Initial_Risk_Register]] — GPU-portability and model-accuracy-mistaken-for-certainty risks this decision addresses.
+- [[PRD-Phase-8]] — the model registry that reuses this ADR's adapter contract unchanged.
+- [[ADR-008-experiment-tracking-and-dataset-versioning]] — Phase 8's training/tracking tooling built around this contract.

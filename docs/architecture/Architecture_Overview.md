@@ -84,8 +84,12 @@ Responsibilities:
 - annotated video;
 - snapshots;
 - telemetry files;
-- datasets;
-- model artifacts.
+- datasets — real as of Phase 8's `datasets` bucket (see [[PRD-Phase-8]]
+  REQ-8.3, `apps/api`'s `DatasetsModule`), not just an aspirational
+  entry in this list;
+- model artifacts — real as of Phase 8's `models` bucket (REQ-8.9,
+  `apps/api`'s `ModelRegistryModule` and `apps/vision-service`'s
+  `training/train.py`).
 
 ### Edge Runtime
 
@@ -126,3 +130,4 @@ React → NestJS → PostgreSQL + Outbox → Kafka
 - [[Technology_Decisions]] — rationale for each technology named above.
 - [[Repository_Structure]] — how these containers map to repo folders.
 - [[MVP_Implementation_Plan]] — phased build-out of this architecture.
+- [[PRD-Phase-8]] — made the datasets/model-artifacts MinIO responsibilities real.

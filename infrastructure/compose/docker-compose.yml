@@ -132,8 +132,20 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
       MINIO_MISSIONS_BUCKET: ${MINIO_MISSIONS_BUCKET:-mission-videos}
+      # PRD-Phase-8 (REQ-8.3/8.9): dataset split manifests and exported
+      # model artifacts, respectively — separate buckets from mission
+      # videos, per docs/architecture/Repository_Structure.md's
+      # dataset/model-binary conventions.
+      MINIO_DATASETS_BUCKET: ${MINIO_DATASETS_BUCKET:-datasets}
+      MINIO_MODELS_BUCKET: ${MINIO_MODELS_BUCKET:-models}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1h}
+      # apps/api/src/main.ts's CORS allow-list. WEB_PORT is passed
+      # through so the container's fallback (localhost:${WEB_PORT})
+      # tracks whatever host port apps/web is actually published on,
+      # rather than a value baked into the image at build time.
+      WEB_PORT: ${WEB_PORT:-5173}
+      CORS_ORIGIN: ${CORS_ORIGIN:-}
     ports:
       - "${API_PORT:-3000}:3000"
     depends_on:
@@ -198,6 +210,19 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
       # REQ-4.10: same bucket apps/api uploads mission videos to.
       MINIO_MISSIONS_BUCKET: ${MINIO_MISSIONS_BUCKET:-mission-videos}
+      # PRD-Phase-8 (REQ-8.9): same models bucket apps/api's
+      # ModelRegistryService reads object keys from — this service
+      # uploads exported .onnx artifacts here directly
+      # (training/train.py's publish_training_run()).
+      MINIO_MODELS_BUCKET: ${MINIO_MODELS_BUCKET:-models}
+      # PRD-Phase-8 (REQ-8.7/8.9/8.10): the in-house model registry
+      # apps/api exposes. Blank by default — training/registry_client.py
+      # and detection/factory.py's registry-resolution path both treat
+      # an unset base URL as "not configured," the same "disabled, not
+      # broken" default every other optional dependency in this service
+      # already has.
+      VISION_SERVICE_MODEL_REGISTRY_BASE_URL: ${VISION_SERVICE_MODEL_REGISTRY_BASE_URL:-http://api:3000}
+      VISION_SERVICE_MODEL_REGISTRY_API_TOKEN: ${VISION_SERVICE_MODEL_REGISTRY_API_TOKEN:-}
     ports:
       - "${VISION_SERVICE_PORT:-8000}:8000"
     depends_on:

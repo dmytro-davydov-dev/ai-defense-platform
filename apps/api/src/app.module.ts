@@ -10,6 +10,9 @@ import { UsersModule } from "./users/users.module";
 import { AuthModule } from "./auth/auth.module";
 import { MissionsModule } from "./missions/missions.module";
 import { KafkaModule } from "./kafka/kafka.module";
+import { DatasetsModule } from "./datasets/datasets.module";
+import { TrainingRunsModule } from "./training-runs/training-runs.module";
+import { ModelRegistryModule } from "./model-registry/model-registry.module";
 
 @Module({
   imports: [
@@ -21,6 +24,12 @@ import { KafkaModule } from "./kafka/kafka.module";
     MissionsModule,
     StorageModule,
     KafkaModule,
+    // PRD-Phase-8 (docs/mvp-plan/PRD-Phase-8.md): platform-level MLOps
+    // modules, not mission-scoped — registered alongside MissionsModule
+    // rather than nested inside it.
+    DatasetsModule,
+    TrainingRunsModule,
+    ModelRegistryModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],
