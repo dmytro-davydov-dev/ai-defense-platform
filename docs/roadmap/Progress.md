@@ -684,11 +684,69 @@ sandbox (see Known gaps).
 
 ---
 
+## Phase 6 — Frontend Mission Workspace
+
+Tracking [[PRD-Phase-6]] requirements (REQ-6.1–6.18). Builds on Phase 2's
+mission/auth/storage surface, Phase 3's event platform, and Phase 5's
+detections/annotated-video output.
+
+### Backend read-path prerequisites
+
+- [ ] REQ-6.1 — `aidefense.detections` consumer persists detections to Postgres, idempotent (reuses REQ-3.8)
+- [ ] REQ-6.2 — `GET /missions/:id/detections` endpoint
+- [ ] REQ-6.3 — `GET /missions/:id/audit-log` endpoint
+- [ ] REQ-6.4 — signed download-URL capability (source + annotated video)
+- [ ] REQ-6.5 — JWT-authenticated WebSocket gateway, per-mission subscription, relays processing-events + detections
+
+### App scaffold and API layer
+
+- [ ] REQ-6.6 — `apps/web` restructured: routing, MUI theme, Redux Toolkit store, RTK Query slice generated from `packages/contracts/openapi.json`
+
+### Authentication
+
+- [ ] REQ-6.7 — login screen + protected-route guard
+- [ ] REQ-6.8 — logout clears client-side session state
+
+### Mission list, detail, and lifecycle actions
+
+- [ ] REQ-6.9 — mission list view with status indicator
+- [ ] REQ-6.10 — mission detail/create/edit/transition views, gated by state + role
+
+### Upload workflow
+
+- [ ] REQ-6.11 — signed-URL upload workflow, triggers DRAFT→QUEUED on completion
+
+### Real-time status and detections
+
+- [ ] REQ-6.12 — mission detail view live via WebSocket, REST fallback on load/reconnect
+
+### Video player and detection overlay
+
+- [ ] REQ-6.13 — video player + synced detection overlay, toggle to Phase 5's annotated artifact
+
+### Event timeline, filters, and audit view
+
+- [ ] REQ-6.14 — event timeline (processing milestones + detections + audit entries)
+- [ ] REQ-6.15 — filters/summary statistics per mission
+- [ ] REQ-6.16 — audit-trail view per mission
+
+### Testing
+
+- [ ] REQ-6.17 — unit tests: Redux/RTK Query, key components, new `apps/api` read paths
+- [ ] REQ-6.18 — one end-to-end test: create mission → upload → live status → detections rendered
+
+**Phase 6 exit:** all boxes above checked, plus the Definition of Done
+in [[PRD-Phase-6]] Section 8. **Status: planning only — implementation
+not yet started.**
+
+---
+
 ## Changelog
 
 Append one line per completed task, newest first. Format:
 `YYYY-MM-DD — REQ-x.x or free text — one-line note`.
 
+- 2026-07-15 — Phase 6 planning — Drafted [[PRD-Phase-6]] (REQ-6.1–6.18), covering the operator-facing Mission Workspace: RTK-Query-driven `apps/web` (routing, MUI, Redux Toolkit) generated from `packages/contracts/openapi.json`; login/logout and protected routing; mission list/detail/create/edit/transition views; the signed-URL upload workflow; and a video player with a detection overlay synced to Phase 5's detections. Research surfaced three `apps/api` gaps this phase must close before the frontend can be built, none of which any prior phase needed: nothing persists `aidefense.detections` for later query (no consumer, no table, no read endpoint), nothing exposes the Phase 2 `audit_log` table for reading, and `StorageService` only issues signed *upload* URLs, never download ones. Added REQ-6.1–6.5 to cover a new detections consumer (reusing REQ-3.8's idempotent-consumption pattern), a detections-read endpoint, an audit-log-read endpoint, a signed-download-URL endpoint, and a JWT-authenticated WebSocket gateway relaying processing-events/detections per mission — the first real-time channel to the browser anywhere in the stack. No new ADR is required per [[MVP_Implementation_Plan]]'s ADR summary (frontend stack already accepted in [[Technology_Decisions]]); flagged the WebSocket transport/room-model choice as a candidate `ADR-007` only if its trade-offs turn out non-obvious. Phase 6 checklist added below, all unchecked — implementation not yet started.
 - 2026-07-14 — REQ-5.1–5.12 implemented — Phase 5 (AI Detection and Tracking) built end-to-end in `apps/vision-service/src/vision_service/detection/`: `adapter.py` (`DetectorAdapterLike` Protocol + `NullDetectorAdapter` "disabled, not broken" fallback), `classes.py` (`COCO_CLASSES` full vocabulary + `ALLOWED_CLASSES` 12-class civilian/synthetic safety allow-list, not env-configurable), `filters.py` (confidence-threshold + class-allow-list filtering, one shared stage regardless of model), `tracker.py` (in-house, dependency-free, per-label greedy-IoU `Tracker` — not the roadmap's named ByteTrack/BoT-SORT, see [[ADR-006-detection-model-and-tracker]]'s "Alternative C" for why), `onnx_detector.py` (`OnnxDetectorAdapter`, CPU-only ONNX Runtime against the standard Ultralytics YOLOv8 output layout, NMS via `cv2.dnn.NMSBoxes`, injectable session for testing), `factory.py` (module-level singleton, same pattern as `storage.minio_client`), and `pipeline.py` (`run_detection_pipeline()`, the real per-frame detect→filter→track→annotate body that replaces Phase 4's counting-only loop, run via `asyncio.to_thread` since it's fully synchronous/CPU-bound). `frames/models.py`'s `Detection` gained optional `trackId`; `annotation/draw.py` now shows it in the label. `storage/minio_client.py` gained `upload_from()` for the annotated-video artifact (REQ-5.7, `missions/{missionId}/annotated.mp4`). `kafka/commands_consumer.py`'s `handle_command_message` gained a fifth `detector` parameter, now publishes one `DETECTION_PUBLISHED` per retained detection to `aidefense.detections` (mission ID partition key) between STARTED and COMPLETED, and `PROCESSING_COMPLETED` gained additive `detectionCount`/`trackCount`/`annotatedVideoObjectKey` fields (ADR-005, no `eventVersion` bump). Added `DETECTION_PUBLISHED` to `packages/event-schemas` (JSON Schema + TS + Pydantic, `EVENT_SCHEMAS_PACKAGE_VERSION` → `0.3.0`); `test_event_schema_sync.py`'s three-way check extended to cover it. Model-load/inference failures (`ModelLoadError`/`ModelInferenceError`/`DetectionPipelineError`) reuse the existing retry/DLQ/`PROCESSING_FAILED` path (REQ-5.10). Drafted [[ADR-006-detection-model-and-tracker]] (model: YOLOv8n/ONNX Runtime CPU; tracker: in-house IoU, not ByteTrack/BoT-SORT) and [[Detection_And_Tracking]] (docs/ai/'s first note). 28 new tests across 4 new files (`test_detection_filters.py`, `test_detection_tracker.py`, `test_detection_onnx_detector.py` — against a fake ONNX session with synthetic YOLOv8-shaped output, no real model file — `test_detection_pipeline.py` — scripted detector against the Phase 4 sample fixture, threshold-based per REQ-5.12) plus `test_commands_consumer.py` rewritten for the 5-argument signature and new DETECTION_PUBLISHED/upload behavior; 86 tests total, all passing against this sandbox's system Python 3.10. Verified: `ruff check`/`ruff format --check` clean; TS side `nx run @ai-defense/event-schemas:{lint,typecheck,test,build}` all pass; `@ai-defense/api:typecheck` reports success (a trailing `Operation not permitted` after that is the same sandbox mount-permission class of issue as `.git/index.lock` below, not a typecheck failure). `onnxruntime` added to `pyproject.toml` but not yet re-locked into `uv.lock` (same recurring gap as Phase 4's three dependencies). No real `.onnx` model has been run through `OnnxDetectorAdapter` anywhere in this sandbox — see this phase's Known gaps.
 - 2026-07-14 — Phase 5 planning — Drafted [[PRD-Phase-5]] (REQ-5.1–5.12), covering a swappable detector adapter interface, YOLO-via-ONNX-Runtime inference (CPU-only), configurable confidence threshold and a hard-enforced civilian/synthetic class allow-list (safety constraint, not just documentation), ByteTrack/BoT-SORT multi-object tracking with track history, a new `DETECTION_PUBLISHED` payload publishing real detections to `aidefense.detections` (declared since Phase 3, never populated), annotated-video generation via Phase 4's existing drawing utility, and per-frame inference metrics in structured logs. Flags two required ADRs (model choice + detector-adapter interface, tracker choice — next number `ADR-006`) deferred by [[PRD-Phase-4]] Section 7, and carries forward the recurring `apps/vision-service/uv.lock` re-lock prerequisite for this phase's new dependencies (ONNX Runtime, tracker library). Phase 5 checklist added below, all unchecked — implementation not yet started.
 - 2026-07-14 — REQ-4.1–4.12 implemented — Phase 4 (Python and OpenCV Foundation) built end-to-end: `video/reader.py`/`image_reader.py` (bounded-memory OpenCV I/O), `frames/models.py` (`Frame`/`Detection`/`BoundingBox`, camelCase per the events convention), `frames/preprocessing.py` (resize/normalize), `annotation/draw.py` (bounding-box/label drawing), `metadata/extract.py` (duration/fps/resolution/SHA-256 checksum), `storage/minio_client.py` (direct boto3 S3 client, module-level singleton). `commands_consumer.py`'s `handle_command_message()` gained a `minio_client` parameter and now downloads the mission's video, extracts metadata, iterates every frame for real (still no detection model), and publishes `PROCESSING_STARTED`/`PROCESSING_COMPLETED` with real metadata/frame-count/duration fields — added as optional, additive fields to `ProcessingStartedPayload`/`ProcessingCompletedPayload` across the JSON Schema, TS, and Pydantic mirrors (ADR-005, no `eventVersion` bump; `test_event_schema_sync.py`'s three-way check still passes). An unrecoverable download/decode failure now also publishes `PROCESSING_FAILED` (previously never emitted by vision-service, so `apps/api`'s existing `PROCESSING_FAILED → FAILED` mapping was dead code until now) alongside the existing DLQ publish. `/ready` now reports real Kafka-consumer and MinIO reachability via `kafka.runner.commands_consumer_runner.is_ready`/`storage.minio_client.minio_client.is_reachable()` — `commands_consumer_runner` moved to a `kafka.runner`-level singleton so `routes/health.py` can share it without a circular import. Added `samples/sample-mission-clip.mp4`+`sample-frame.png` (deterministic synthetic fixtures, regeneratable via `apps/vision-service/scripts/generate_samples.py`) and 26 new tests across 8 new/extended test files (58 total, all passing). Verified: `ruff check`/`ruff format --check` clean and full pytest suite green against this sandbox's system Python 3.10; TS side verified via `nx run @ai-defense/event-schemas:{lint,typecheck,test,build}` and `@ai-defense/api:{lint,typecheck}` (all pass) — `@ai-defense/api:{build,test}` failed on two pre-existing sandbox/mount issues unrelated to this phase (stale `dist/` can't be unlinked; `pnpm install` can't complete so `ts-jest` was never installed), documented in this phase's Known gaps rather than worked around. `uv.lock` was found already committed (resolved outside this session) but is not yet re-locked for this phase's three new dependencies — also in Known gaps.

@@ -74,6 +74,7 @@ Phase 5.
 - [[PRD-Phase-3]] — Phase 3 expanded into full requirements (REQ-3.1–3.15).
 - [[PRD-Phase-4]] — Phase 4 expanded into full requirements (REQ-4.1–4.12).
 - [[PRD-Phase-5]] — Phase 5 expanded into full requirements (REQ-5.1–5.12).
+- [[PRD-Phase-6]] — Phase 6 expanded into full requirements (REQ-6.1–6.18).
 
 ---
 
@@ -82,7 +83,7 @@ Phase 5.
 - **Tags** group notes by domain: `#vision`, `#goals`, `#principles`,
   `#architecture`, `#quality-attributes`, `#technology`, `#repository`,
   `#standards`, `#risk`, `#adr`, `#roadmap`, `#sprint0`, `#mvp`, `#plan`,
-  `#prd`, `#phase1`, `#phase4`, `#phase5`, `#ai`, `#moc`. Use Obsidian's tag pane to
+  `#prd`, `#phase1`, `#phase4`, `#phase5`, `#phase6`, `#ai`, `#moc`. Use Obsidian's tag pane to
   filter by any of these.
 - **Related Notes** sections at the bottom of each note are the
   hand-curated edges of the graph; Obsidian's backlinks panel shows the
