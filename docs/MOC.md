@@ -84,6 +84,7 @@ notes that build on it.
 - [[PRD-Phase-7]] — Phase 7 (MVP slice) expanded into full requirements (REQ-7.1–7.9).
 - [[PRD-Phase-8]] — Phase 8 (post-MVP, full roadmap scope) expanded into full requirements (REQ-8.1–8.17).
 - [[PRD-Phase-9]] — Phase 9 (post-MVP, full roadmap scope) expanded into full requirements (REQ-9.1–9.18); implemented on ADR-010/ADR-011.
+- [[PRD-Phase-10]] — Phase 10 (post-MVP, full roadmap scope) expanded into full requirements (REQ-10.1–10.18); flags ADR-012–ADR-015 (secrets management, OIDC/RBAC-ABAC, mTLS strategy, supply-chain tooling), not yet drafted — planning only, implementation not started.
 
 ---
 
@@ -93,7 +94,7 @@ notes that build on it.
   `#architecture`, `#quality-attributes`, `#technology`, `#repository`,
   `#standards`, `#risk`, `#adr`, `#roadmap`, `#sprint0`, `#mvp`, `#plan`,
   `#prd`, `#phase1`, `#phase4`, `#phase5`, `#phase6`, `#phase7`, `#phase8`,
-  `#phase9`, `#mlops`, `#ai`, `#edge`, `#moc`. Use Obsidian's tag pane to
+  `#phase9`, `#phase10`, `#mlops`, `#ai`, `#edge`, `#moc`. Use Obsidian's tag pane to
   filter by any of these.
 - **Related Notes** sections at the bottom of each note are the
   hand-curated edges of the graph; Obsidian's backlinks panel shows the

@@ -1,9 +1,4 @@
 import { config } from "dotenv";
-import { NestFactory } from "@nestjs/core";
-import { ValidationPipe } from "@nestjs/common";
-import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
-import { log } from "@ai-defense/observability";
-import { AppModule } from "./app.module";
 
 // Plain `import "dotenv/config"` (as prisma.config.ts uses) only loads
 // `.env` from process.cwd() — it does not pick up `.env.local`. Loaded
@@ -12,7 +7,19 @@ import { AppModule } from "./app.module";
 // prod build), matching the Docker WORKDIR (apps/api) and local dev
 // cwd. Local-only convenience file, gitignored; unset vars still fall
 // through to the shell/Compose environment.
+//
+// Must run before the `./app.module` import below: TS's CommonJS emit
+// preserves source order rather than hoisting imports, but modules
+// like AuthModule read `process.env.JWT_SECRET` at module-load time
+// (src/auth/jwt-expiry.util.ts), so dotenv has to be loaded first or
+// that read sees an empty environment and throws.
 config({ path: "./.env.local" });
+
+import { NestFactory } from "@nestjs/core";
+import { ValidationPipe } from "@nestjs/common";
+import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
+import { log } from "@ai-defense/observability";
+import { AppModule } from "./app.module";
 
 /** `.env.example`-documented vars ship blank rather than absent (REQ-1.18's committed-example convention), so `??` alone won't fall through — treat `""` the same as unset. */
 function nonEmptyEnv(value: string | undefined): string | undefined {

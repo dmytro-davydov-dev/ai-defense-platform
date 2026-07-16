@@ -1197,11 +1197,111 @@ test are the open items. See Known gaps.
 
 ---
 
+## Phase 10 — Security Architecture
+
+Tracking [[PRD-Phase-10]] requirements (REQ-10.1–10.18). Like Phases 8
+and 9, this is **post-MVP** — [[MVP_Implementation_Plan]] explicitly
+defers Phase 10, save for the baseline subset (JWT auth, no hardcoded
+secrets, signed storage URLs) already shipped in Phases 1–3. Turns every
+"remains Phase 10" / "deferred to Phase 10" note already on record in
+[[Security_Baseline]], [[PRD-Phase-2]], [[PRD-Phase-6]], [[PRD-Phase-8]],
+[[PRD-Phase-9]], and [[ADR-011-device-identity-and-sync-transport]] into
+implementable requirements. Flags four required ADRs, next numbers
+`ADR-012` (secrets-management tooling), `ADR-013` (OIDC provider and
+RBAC/ABAC mechanism), `ADR-014` (zero-trust/mTLS strategy for Compose),
+and `ADR-015` (supply-chain tooling: SBOM, scanning, signing) — none yet
+drafted.
+
+### Threat model
+
+- [ ] REQ-10.1 — documented threat model covering every
+  [[Architecture_Overview]] container and trust boundary, cross-linked
+  from [[Initial_Risk_Register]]
+
+### Zero-trust service communication and mTLS
+
+- [ ] REQ-10.2 — no service-to-service connection trusted by network
+  location alone
+- [ ] REQ-10.3 — mTLS (or equivalent) for `api`↔`postgres`/`minio`/`redpanda`,
+  with a documented issuance/rotation story
+- [ ] REQ-10.4 — documented migration path for
+  [[ADR-011-device-identity-and-sync-transport]]'s device bearer token
+  onto/alongside this phase's mechanism
+
+### Identity: OIDC and RBAC/ABAC
+
+- [ ] REQ-10.5 — OIDC federation in `AuthModule`, coexisting with
+  existing local bcrypt+JWT accounts
+- [ ] REQ-10.6 — token/session revocation: a role change or disabled
+  account takes effect before natural JWT expiry
+- [ ] REQ-10.7 — RBAC extended toward ABAC for [[PRD-Phase-2]]'s named
+  gaps (mission ownership scoping and/or a `viewer` role)
+- [ ] REQ-10.8 — real machine/service-identity mechanism, replacing the
+  Phase 8 `registry_client.py` "reuse an operator JWT" shortcut
+
+### Secrets management
+
+- [ ] REQ-10.9 — secrets sourced from a dedicated secrets-management
+  mechanism for non-local-dev deployment (`.env` remains the local-dev
+  path)
+- [ ] REQ-10.10 — secret rotation requires no code change
+
+### Encryption at rest and in transit
+
+- [ ] REQ-10.11 — Postgres/MinIO data at rest encrypted (or documented
+  encrypted-volume equivalent) beyond local dev
+- [ ] REQ-10.12 — HTTP paths this phase's mTLS work covers use TLS
+  beyond local dev
+
+### Supply chain: signed artifacts, SBOM, and controls
+
+- [ ] REQ-10.13 — SBOM generated per built image in
+  `.github/workflows/ci.yml`'s `docker-build` job
+- [ ] REQ-10.14 — dependency/container vulnerability scanning with a
+  documented blocking-severity policy
+- [ ] REQ-10.15 — built images cryptographically signed, with a
+  documented verification step
+
+### Immutable audit trail
+
+- [ ] REQ-10.16 — `audit_log` hardened from an application-layer
+  append-only convention into a tamper-evident mechanism (hash-chaining,
+  DB-level constraint, or equivalent)
+
+### Retention and deletion policy
+
+- [ ] REQ-10.17 — documented retention/deletion policy for mission data,
+  telemetry, datasets, model artifacts, device-synced events, and audit
+  records, with at least one category enforced end-to-end
+
+### Testing
+
+- [ ] REQ-10.18 — tests for unauthorized-access rejection, revoked-token
+  enforcement, tampered-audit-row detection, and CI's SBOM/scanning/
+  signing steps
+
+**Phase 10 exit:** not started — checklist above added this session
+alongside [[PRD-Phase-10]]; all REQs unchecked.
+
+### Known gaps
+
+- **Planning only — no implementation started.** [[PRD-Phase-10]] was
+  drafted this session against the roadmap's full "Phase 10 — Security
+  Architecture" entry. The four required ADRs (`ADR-012`–`ADR-015`) are
+  flagged but not drafted; per this project's standing instruction not
+  to guess, none of REQ-10.1–10.18 has been implemented, and none of
+  this phase's ADR-level questions (secrets tooling, OIDC provider/
+  RBAC-ABAC mechanism, mTLS strategy, supply-chain tooling — see
+  [[PRD-Phase-10]] Section 11) has been resolved.
+
+---
+
 ## Changelog
 
 Append one line per completed task, newest first. Format:
 `YYYY-MM-DD — REQ-x.x or free text — one-line note`.
 
+- 2026-07-15 — Phase 10 planning — Drafted [[PRD-Phase-10]] (REQ-10.1–10.18), scoped against the roadmap's full "Phase 10 — Security Architecture" entry — post-MVP, like Phases 8/9 ([[MVP_Implementation_Plan]] defers all of Phase 10 past the MVP save for the baseline subset already shipped in Phases 1–3). Covers turning every "remains Phase 10"/"deferred to Phase 10" note already on record — [[Security_Baseline]]'s full-OIDC/mTLS/threat-modeling and SBOM/supply-chain gaps, [[PRD-Phase-2]]'s risk-table note that two flat RBAC roles undersell later access-control needs, [[PRD-Phase-6]]'s deferred session hardening, Phase 8's `training/registry_client.py` machine-identity shortcut, and [[ADR-011-device-identity-and-sync-transport]]'s own Review-date instruction to migrate its device bearer token onto a Phase 10 platform-wide mechanism — into implementable requirements: a formal threat model; zero-trust/mTLS service communication (`api`↔`postgres`/`minio`/`redpanda`); OIDC federation plus working token/session revocation; RBAC extended toward ABAC for the concrete gaps already on record; a real machine/service-identity mechanism; secrets management beyond `.env`; encryption at rest and in transit; CI-level SBOM generation, vulnerability scanning, and image signing; a tamper-evident audit trail; and a documented retention/deletion policy. Flags four required ADRs, next numbers `ADR-012` (secrets-management tooling), `ADR-013` (OIDC provider and RBAC/ABAC mechanism), `ADR-014` (zero-trust/mTLS strategy for Compose, explicitly scoped short of Phase 12's Kubernetes/service-mesh rollout), and `ADR-015` (supply-chain tooling: SBOM/scanner/signing choices) — none yet drafted; deliberately did not guess at any of the four, per this project's research-first instruction. Explicit non-goals: Kubernetes-native/service-mesh mTLS rollout (Phase 12), formal compliance certification (Phase 14), replacing RBAC with a general-purpose policy engine unless the ADR concludes it's genuinely simplest, any `ALLOWED_CLASSES`/safety-boundary change, real penetration testing (Phase 13/14), a mandatory HSM/cloud-KMS integration, and new observability dashboards/alerting (Phase 11). Added this session's Phase 10 checklist above (all REQs unchecked) and linked [[PRD-Phase-10]] from [[MOC]]'s roadmap list and `#phase10` tag — implementation not yet started.
 - 2026-07-15 — REQ-9.1–9.14 implemented (REQ-9.15/9.16 partial, REQ-9.17 partial, REQ-9.18 not done) — Phase 9 (Edge Runtime, post-MVP) built end-to-end on [[ADR-010-edge-runtime-language-and-inference-strategy]] (Node/TS orchestrator + a Python sidecar reusing Phase 5's detection code unchanged, over newline-delimited JSON on stdio) and [[ADR-011-device-identity-and-sync-transport]] (SHA-256-hashed bearer token device identity; sync over a new `POST /edge/events` HTTP endpoint, not a direct Kafka producer). Python: `apps/vision-service/src/vision_service/edge/sidecar.py` — a thin process wrapper around Phase 5's exact `OnnxDetectorAdapter`/`filter_detections`/`ALLOWED_CLASSES`/`Tracker`/`VideoReader`, emitting one JSON object per line on stdout (`ready`/`detection`/`error`), all logging routed to stderr so stdout stays a clean protocol channel; 5 new tests, all passing. `apps/api`: `EdgeDevice` Prisma model + hand-written migration; new `edge-auth` module (`DeviceAuthGuard` — SHA-256 hash lookup against `edge_devices.token_hash`; `JwtOrDeviceAuthGuard` — tries JWT first via `isObservable`/`firstValueFrom` to correctly unwrap `CanActivate`'s three possible return shapes, falls back to device auth); new `edge` module (`POST`/`GET /devices`, admin-only, returns the plaintext token exactly once; `POST /edge/events`, device-auth-only, reuses REQ-3.8's `processed_events` idempotency pattern and republishes via the existing outbox — no new publish path); wired `JwtOrDeviceAuthGuard` onto `GET /models/production` and `GET /storage/download-url` so a device can resolve/download models with the same credential. `packages/event-schemas` gained `DEVICE_HEALTH_REPORTED` (JSON Schema + TS + Pydantic mirror, `EVENT_SCHEMAS_PACKAGE_VERSION` → `0.4.0`), routed to `TOPICS.DEVICE_EVENTS` in `envelope-builder.ts` — this topic's first real producer since Phase 3 declared it unpopulated. `apps/edge-agent`: the Phase 1 no-op stub replaced entirely — `config.ts`, `event-buffer.ts` (`node:sqlite`-backed durable buffer: idempotent append, always-at-least-one-row batching under a byte cap, age/cap-based prune that never touches unsynced rows), `health-reporter.ts`, `sync-client.ts` (store-and-forward, marks synced only on server confirmation), `model-resolver.ts` (streams the production model from the registry via the device's own token), `python-sidecar.ts` (spawns/supervises the sidecar; `parseSidecarLine()` factored out as a pure function after an initial over-complicated test approach was self-corrected), `health-http-server.ts`, `main.ts` (wires everything together: sync/health-report/model-poll/prune intervals, sidecar auto-restart with backoff, graceful SIGTERM/SIGINT). Verified for real in this sandbox (not just written): `apps/vision-service`'s full suite (124/124) and Ruff both clean on system Python 3.10; `apps/edge-agent` — worked around this sandbox's recurring `pnpm install` EPERM by manually symlinking/building `@ai-defense/event-schemas` — `tsc --noEmit`, `eslint`, and `node --experimental-sqlite --test` (23/23) all clean; `apps/api`'s new/changed code (`src/edge/`, `src/edge-auth/`, the two guard changes) is `tsc --noEmit`/`eslint`-clean but its `jest` suite couldn't run at all here — the same pre-existing sandbox-wide `ts-jest` resolution gap documented since Phase 2, reproduced against an untouched file to confirm it isn't new. Deliberately scoped down: edge detections are buffered locally but not synced to the cloud (no mission-scoping fits the existing `detections` table's `NOT NULL` FK — an open schema question, not guessed at), REQ-9.16's payload prioritization has nothing to rank between yet as a result, REQ-9.15's model download is streaming but not throttled/resumable, and REQ-9.18's full offline→reconnect→sync flow has no single integration fixture (each stage is unit-tested in isolation). Updated [[Architecture_Overview]]'s Edge Runtime section (real as of this phase, same transition Phase 7/8 made for PostGIS/MinIO) and created [[Edge_Runtime]], `docs/edge/`'s first note. See this phase's Known gaps for full detail.
 - 2026-07-15 — bugfix — `apps/api` failed to boot with `UnknownDependenciesException: Nest can't resolve dependencies of the JwtOrDeviceAuthGuard (?, DeviceAuthGuard). ... argument JwtAuthGuard at index [0] is available in the StorageModule module` (same for `ModelRegistryModule`). Root cause, confirmed against Nest's own "Cannot resolve dependency" troubleshooting (docs.nestjs.com/faq/common-errors, "If `<unknown_token>` is exported from a separate @Module, is that module imported within `<module>`?"): `JwtAuthGuard`/`RolesGuard` have no/framework-global constructor deps, so Nest can construct them anywhere they're referenced via `@UseGuards()` with no module wiring — that's why the pre-existing `@UseGuards(JwtAuthGuard, RolesGuard)` routes on both controllers already worked. `JwtOrDeviceAuthGuard` (Phase 9's `EdgeAuthModule`) genuinely depends on the `JwtAuthGuard` token in its constructor, though, and needs that token reachable from its *consumer's* own import graph — `StorageModule`/`ModelRegistryModule` only import `EdgeAuthModule`, which imported `AuthModule` but never re-exported it, so `JwtAuthGuard` wasn't visible to either. Fixed by adding `AuthModule` to `EdgeAuthModule`'s `exports` array (`edge-auth.module.ts`) — `EdgeModule` itself already imports both `AuthModule` and `EdgeAuthModule` directly, so no duplication/circularity introduced. Verified `tsc --noEmit`/`eslint` clean.
 - 2026-07-15 — bugfix — `pnpm --filter @ai-defense/api run start:dev` reported 4 typecheck errors against Phase 9's edge-runtime code (`apps/api/src/edge/`, `src/edge-auth/`), currently untracked/in-progress on disk and not yet reflected in this file's checklist. Two independent causes: (1) `packages/event-schemas/dist/` was stale — built before `DEVICE_HEALTH_REPORTED` was added to `src/payloads.ts`'s `EVENT_TYPES`, so `apps/api` (which resolves the package via its committed `"types": "./dist/index.d.ts"`) was typechecking against the old 5-member object; source was already correct, just rebuilt `dist/` (`pnpm --filter @ai-defense/event-schemas run build`) — the same recurring stale-dist class of issue as REQ-2.12's session. (2) A real bug in `edge-auth/jwt-or-device-auth.guard.ts`: `Promise.resolve(this.jwtAuthGuard.canActivate(context))` doesn't unwrap an `Observable<boolean>` (one of `CanActivate.canActivate()`'s three possible return types, reachable here since `JwtAuthGuard extends AuthGuard("jwt")`) — `await` on that yielded the Observable itself, a type error, not a boolean. Fixed with `isObservable`/`firstValueFrom` from `rxjs`; also fixed a latent behavior bug the same rewrite exposed — the original `try { return await ... } catch { fall back to device auth }` only fell back on a thrown exception, never on the JWT guard resolving `false` without throwing, silently defeating the "try JWT, then device" fallback intent for that case. Verified `tsc --noEmit`/`eslint` clean on all of `apps/api` after both fixes.
