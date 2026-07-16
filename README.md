@@ -48,26 +48,6 @@ related notes. Open `docs/` as an Obsidian vault and start from
 [`docs/MOC.md`](docs/MOC.md) (Map of Content) to navigate via links,
 tags, or the graph view.
 
-## Current phase
-
-**Phase 1 — Repository and Engineering Foundation** (see
-`docs/mvp-plan/PRD-Phase-1.md`). Empty but running application shells,
-local infrastructure, and CI quality gates. No business logic yet.
-
-Background reading:
-
-1. `docs/vision/Vision.md`
-2. `docs/vision/Goals.md`
-3. `docs/vision/Guiding_Principles.md`
-4. `docs/architecture/Quality_Attributes.md`
-5. `docs/architecture/Architecture_Overview.md`
-6. `docs/decisions/Technology_Decisions.md`
-7. `docs/architecture/Repository_Structure.md`
-8. `docs/architecture/Coding_Standards.md`
-9. `docs/roadmap/AI_Defense_Platform_Roadmap.md`
-10. `docs/mvp-plan/PRD-Phase-1.md` and `docs/mvp-plan/MVP_Implementation_Plan.md`
-11. `docs/CONTRIBUTING.md` — branch/release strategy, Conventional Commits, PR checklist
-
 ## Prerequisites
 
 - Node.js 20+ and [pnpm](https://pnpm.io) 9+ (`corepack enable` will
