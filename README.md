@@ -111,6 +111,13 @@ pnpm --filter @ai-defense/web dev      # Vite dev server
 pnpm --filter @ai-defense/api start:dev # NestJS with watch
 ```
 
+Running `apps/api` this way (or any `prisma migrate`/`prisma generate`
+CLI command against it) needs its own `apps/api/.env.local` — the root
+`.env` above is consumed by Docker Compose and points at
+Docker-internal hostnames (`postgres`, `minio`, ...) a host shell can't
+resolve. See [`docs/devops/Local_Development_Stack.md`](docs/devops/Local_Development_Stack.md#running-appsapi-outside-docker-compose)
+for the file to create and its expected contents.
+
 `apps/vision-service` is managed independently via uv (kept outside the
 Nx graph, per ADR-001):
 

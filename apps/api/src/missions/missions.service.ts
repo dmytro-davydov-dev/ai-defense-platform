@@ -199,6 +199,43 @@ export class MissionsService {
     });
   }
 
+  /**
+   * Soft delete only, DRAFT-only — a scope extension beyond
+   * PRD-Phase-2 REQ-2.7's original CRUD list (create, get, list, update
+   * metadata, transition), added per explicit request. Same
+   * DRAFT-only rule as `updateMetadata()`: a mission that has left DRAFT
+   * is a record of real work (queued/processing/completed/failed), not
+   * draft state, so it isn't deletable — reject with a stable
+   * machine-readable code (Coding_Standards.md) rather than silently
+   * allowing it. `MissionsRepository.softDelete` sets `deletedAt`
+   * instead of removing the row: a hard delete would violate the FK from
+   * `AuditLog` (every mission gets a "mission.created" row the instant
+   * it's created) or force cascading away audit history, contradicting
+   * `AuditLog`'s own append-only guarantee (REQ-2.10). See
+   * docs/architecture/Mission_State_Machine.md's "Deletion" section.
+   */
+  async deleteMission(id: string, ctx: ActionContext): Promise<void> {
+    const mission = await this.getMission(id);
+    if (mission.status !== MissionStatus.DRAFT) {
+      throw new ConflictException("MISSION_NOT_DELETABLE");
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await this.missionsRepository.softDelete(id, tx);
+      await this.auditService.record(
+        {
+          actorUserId: ctx.actorUserId,
+          action: "mission.deleted",
+          targetType: "mission",
+          targetId: id,
+          missionId: id,
+          correlationId: ctx.correlationId,
+        },
+        tx,
+      );
+    });
+  }
+
   async attachVideo(
     id: string,
     videoObjectKey: string,

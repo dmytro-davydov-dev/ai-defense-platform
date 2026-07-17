@@ -65,7 +65,11 @@ CRUD, identity/RBAC, upload URLs and audit logging incrementally.
   Every register/login attempt (success or failure) and every token
   issuance writes an audit record.
 - `MissionsModule` (`src/missions/`, REQ-2.7/2.8): CRUD + state
-  transitions. `mission-state-machine.ts` is pure domain logic (no
+  transitions, plus `DELETE /missions/:id` (soft delete, DRAFT-only — a
+  scope extension beyond REQ-2.7's original list, see
+  [[Mission_State_Machine]]'s "Deletion" section for why hard delete
+  isn't viable given the append-only `AuditLog` FK). `mission-state-
+  machine.ts` is pure domain logic (no
   Prisma/Nest import beyond the `MissionStatus` enum) implementing
   [[Mission_State_Machine]]'s legal-transition table — unit-tested in
   isolation per REQ-2.13. `MissionsService.transition()` is the only
@@ -230,6 +234,23 @@ CRUD, identity/RBAC, upload URLs and audit logging incrementally.
   confirmed the Prisma fix above). Still worth a `docker compose up
   --build api` run to confirm the Dockerfile `CMD` specifically resolves
   the same way, not just the local `node` invocation.
+- **RESOLVED (2026-07-17). `prisma.config.ts` only loaded `.env`, never
+  `apps/api/.env.local`** — the CLI's `The datasource.url property is
+  required in your Prisma config file when using prisma migrate deploy`
+  error, hit by Dmytro running `pnpm --filter @ai-defense/api exec
+  prisma migrate deploy` from a host shell to apply the mission
+  soft-delete migration below. `src/main.ts` already explicitly loads
+  `.env.local` (`config({ path: "./.env.local" })`, with a comment
+  calling out that plain `import "dotenv/config"` — what
+  `prisma.config.ts` used — only reads `.env` from `process.cwd()`), so
+  the running app connected to Postgres fine while every Prisma CLI
+  command failed for anyone whose only env file is `.env.local` (see
+  [[Local_Development_Stack]] for the full `.env` vs `.env.local`
+  convention). Fixed by making `prisma.config.ts` do the same explicit
+  `config({ path: "./.env.local" })` call `main.ts` already did — one
+  line, using `dotenv`'s default `override: false` so it's additive to
+  whatever the shell/CI environment already provides, not a behavior
+  change for anyone who already had `DATABASE_URL` set another way.
 - **`nest build` (and so `openapi:export`) briefly failed for a third,
   unrelated reason**: `src/` already has real Phase 3 REQ-3.14 code
   (`src/kafka/`, `src/processed-events/`) wired into `AppModule` —
@@ -315,5 +336,8 @@ mission-scoped, so each is its own top-level controller alongside
   app implements.
 - [[Observability_Baseline]] — the structured-logging helper this app
   consumes.
+- [[Local_Development_Stack]] — the `.env` (Docker-internal hostnames)
+  vs `apps/api/.env.local` (host-facing) convention behind the
+  `prisma.config.ts` Known-gaps entry above.
 - [[PRD-Phase-8]] — REQ-8.1-8.3, REQ-8.7, REQ-8.8, REQ-8.9-8.12, REQ-8.13, REQ-8.14 implemented here.
 - [[ADR-008-experiment-tracking-and-dataset-versioning]] — the tracking/versioning decision `training-runs/`/`datasets/` implement.

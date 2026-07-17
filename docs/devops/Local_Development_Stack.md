@@ -33,6 +33,51 @@ docker compose --env-file .env -f infrastructure/compose/docker-compose.yml up -
 the PostGIS extension so a plain `postgres` image could be substituted
 later without silently losing GIS support.
 
+## Running `apps/api` outside Docker Compose
+
+`docker-compose.yml` injects each service's `DATABASE_URL`/
+`KAFKA_BROKERS`/`MINIO_ENDPOINT` etc. itself, resolved against
+Docker-internal hostnames (`postgres`, `redpanda`, `minio`) via the root
+`.env`'s `POSTGRES_*`/`MINIO_*` values (see the Docker Compose section
+above). Those internal hostnames aren't resolvable from a plain host
+shell, so running `apps/api` directly (`pnpm --filter @ai-defense/api
+start:dev`, or any Prisma CLI command) needs its own env file with the
+same values but `localhost`-pointed instead:
+
+`apps/api/.env.local` — gitignored (`.gitignore`'s `.env.local`/
+`.env.*.local` patterns), not committed, created by hand per developer
+machine:
+
+```dotenv
+DATABASE_URL="postgresql://<POSTGRES_USER>:<POSTGRES_PASSWORD>@localhost:<POSTGRES_PORT>/<POSTGRES_DB>"
+KAFKA_BROKERS="localhost:<REDPANDA_KAFKA_PORT>"
+MINIO_ENDPOINT="localhost"
+MINIO_PORT="<MINIO_PORT>"
+MINIO_ROOT_USER="<MINIO_ROOT_USER>"
+MINIO_ROOT_PASSWORD="<MINIO_ROOT_PASSWORD>"
+JWT_SECRET="<JWT_SECRET>"
+CORS_ORIGIN="http://localhost:<WEB_PORT>"
+```
+
+(Values should match the root `.env`'s `POSTGRES_*`/`MINIO_*`/etc.
+entries — this file just re-points the hostnames at `localhost` since
+Compose still needs to be up for the actual Postgres/Redpanda/MinIO
+containers, only `apps/api` itself is running outside it.)
+
+`apps/api/src/main.ts` loads this explicitly
+(`config({ path: "./.env.local" })`, via the `dotenv` package) because
+plain `import "dotenv/config"` only reads `.env` from `process.cwd()`,
+never `.env.local`. `apps/api/prisma.config.ts` (the Prisma CLI's own
+config, used by `prisma migrate`/`prisma generate`) does the same for
+the same reason — until 2026-07-17 it didn't, which meant `prisma
+migrate deploy`/`generate` run from a host shell failed with "The
+datasource.url property is required in your Prisma config file" even
+though the running app connected fine (see [[API_Shell]]'s Known gaps
+for the fix). Currently only `apps/api` has this file — `apps/web`/
+`apps/vision-service` don't need a host/container hostname split the
+same way (Vite's env vars are baked in at build time; `vision-service`
+isn't Dockerized as part of this split yet).
+
 ## CI — GitHub Actions
 
 `.github/workflows/ci.yml` (REQ-1.19-1.21) runs on every PR:
@@ -72,3 +117,5 @@ gaps.
 - [[ADR-001-monorepo-tooling]] — why Python's CI job is separate from
   the Nx graph.
 - [[Repository_Structure]] — `infrastructure/` layout.
+- [[API_Shell]] — `apps/api/.env.local`/`prisma.config.ts` details and the
+  known-gap history behind the fix referenced above.

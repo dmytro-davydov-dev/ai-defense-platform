@@ -2,7 +2,21 @@
 // PrismaClient connection is configured separately in
 // src/prisma/prisma.service.ts via @prisma/adapter-pg, per
 // docs/adr/ADR-004-nestjs-orm.md.
-import "dotenv/config";
+//
+// Loads `.env.local` explicitly, the same way src/main.ts does (see that
+// file's comment) — plain `import "dotenv/config"` only loads `.env`
+// from process.cwd(), not `.env.local`, so a host machine that only has
+// `.env.local` (this repo's convention for the gitignored, host-facing
+// override with `localhost`-pointed DATABASE_URL/KAFKA_BROKERS/
+// MINIO_ENDPOINT, as opposed to the Docker-internal hostnames baked into
+// docker-compose.yml's `.env`-sourced values) previously failed CLI
+// commands (`prisma migrate deploy`, etc.) with "datasource.url property
+// is required" even though the app itself booted fine. `config()` here
+// doesn't override already-set variables (dotenv's default
+// `override: false`), so this is additive to whatever the shell/CI
+// environment already provides, same as main.ts.
+import { config } from "dotenv";
+config({ path: "./.env.local" });
 import { defineConfig } from "prisma/config";
 
 // Plain process.env read (not the `env()` helper, which throws if the

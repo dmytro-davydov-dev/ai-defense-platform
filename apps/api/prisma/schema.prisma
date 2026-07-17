@@ -54,6 +54,17 @@ model Mission {
   createdBy      User          @relation(fields: [createdById], references: [id])
   createdAt      DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
+  // Soft delete only (not in scope for the original PRD-Phase-2 REQ-2.7
+  // CRUD, added as a scope extension). A hard DELETE would either violate
+  // the FK from AuditLog (every mission gets a "mission.created" row the
+  // instant it exists, so the FK would reject the delete) or force
+  // cascading away audit history, which contradicts AuditLog's own
+  // append-only guarantee documented below (REQ-2.10). `deletedAt` set
+  // means the mission is excluded from MissionsRepository.findById/
+  // findAll's default reads but the row and its audit trail are kept.
+  // Restricted to DRAFT-status missions at the service layer (same rule
+  // as metadata edits) — see docs/architecture/Mission_State_Machine.md.
+  deletedAt      DateTime?     @map("deleted_at")
   auditLogs      AuditLog[]
   detections     Detection[]
   telemetryPoints TelemetryPoint[]

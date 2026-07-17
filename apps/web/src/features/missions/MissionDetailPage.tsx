@@ -19,6 +19,7 @@ import { extractErrorMessage } from "../../shared/errors";
 import { useMissionSocket } from "../realtime/useMissionSocket";
 import { MissionStatusBadge } from "./MissionStatusBadge";
 import { MissionMetadataForm } from "./MissionMetadataForm";
+import { DeleteMissionButton } from "./DeleteMissionButton";
 import { TransitionControls } from "./TransitionControls";
 import { UploadPanel } from "./UploadPanel";
 import { StatsPanel } from "./StatsPanel";
@@ -91,6 +92,7 @@ export function MissionDetailPage() {
         <UploadPanel mission={mission} />
         <TelemetryUploadPanel missionId={missionId} />
         <TransitionControls mission={mission} />
+        <DeleteMissionButton mission={mission} />
       </Stack>
 
       <Divider sx={{ mb: 2 }} />

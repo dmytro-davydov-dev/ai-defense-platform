@@ -22,6 +22,7 @@ describe("MissionsService (REQ-2.7/2.8/2.13)", () => {
     updateMetadata: jest.Mock;
     updateStatus: jest.Mock;
     setVideoObjectKey: jest.Mock;
+    softDelete: jest.Mock;
   };
   let audit: { record: jest.Mock };
   let outbox: { insert: jest.Mock };
@@ -36,6 +37,7 @@ describe("MissionsService (REQ-2.7/2.8/2.13)", () => {
       updateMetadata: jest.fn(),
       updateStatus: jest.fn(),
       setVideoObjectKey: jest.fn(),
+      softDelete: jest.fn().mockResolvedValue(undefined),
     };
     audit = { record: jest.fn().mockResolvedValue(undefined) };
     outbox = { insert: jest.fn().mockResolvedValue("event-1") };
@@ -242,6 +244,47 @@ describe("MissionsService (REQ-2.7/2.8/2.13)", () => {
           actorUserId: "user-1",
         }),
       ).rejects.toThrow(/MISSION_STATE_CHANGED_CONCURRENTLY/);
+    });
+  });
+
+  describe("deleteMission", () => {
+    it("throws NotFoundException when the mission doesn't exist", async () => {
+      repo.findById.mockResolvedValue(null);
+      await expect(
+        service.deleteMission("missing", { actorUserId: "user-1" }),
+      ).rejects.toThrow(NotFoundException);
+      expect(repo.softDelete).not.toHaveBeenCalled();
+    });
+
+    it("rejects deletion once the mission has left DRAFT", async () => {
+      repo.findById.mockResolvedValue({
+        ...baseMission,
+        status: MissionStatus.QUEUED,
+      });
+      await expect(
+        service.deleteMission("mission-1", { actorUserId: "user-1" }),
+      ).rejects.toThrow(ConflictException);
+      expect(repo.softDelete).not.toHaveBeenCalled();
+    });
+
+    it("soft-deletes a DRAFT mission and writes an audit record inside the same transaction", async () => {
+      repo.findById.mockResolvedValue(baseMission);
+
+      await service.deleteMission("mission-1", {
+        actorUserId: "user-1",
+        correlationId: "corr-1",
+      });
+
+      expect(repo.softDelete).toHaveBeenCalledWith("mission-1", "fake-tx");
+      expect(audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: "mission.deleted",
+          missionId: "mission-1",
+          actorUserId: "user-1",
+          correlationId: "corr-1",
+        }),
+        "fake-tx",
+      );
     });
   });
 

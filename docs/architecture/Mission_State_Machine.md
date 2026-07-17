@@ -56,6 +56,31 @@ they belong in `MissionService`, with the Postgres `MissionStatus` enum
 (`apps/api/prisma/schema.prisma`) only guaranteeing the column can't
 hold a value outside the five states above.
 
+## Deletion
+
+Added as a scope extension beyond [[PRD-Phase-2]] REQ-2.7's original CRUD
+list (create, get, list, update metadata, transition — delete was never
+in that list), per explicit request.
+
+`DELETE /missions/:id` soft-deletes: it sets `Mission.deletedAt` rather
+than removing the row, and is only legal while the mission is `DRAFT` —
+the same restriction `updateMetadata` already applies, on the same
+reasoning ("a mission that's left DRAFT is a record of real work, not
+draft state"). A hard delete isn't viable here: every mission gets a
+`mission.created` `AuditLog` row the instant it's created, and that
+table's FK to `Mission` would reject the delete outright — or, if
+cascaded, would destroy audit history and contradict `AuditLog`'s own
+documented append-only guarantee (REQ-2.10, "Audit records are never
+updated or deleted via the API surface"). Soft delete keeps the row and
+its full audit trail intact; `MissionsRepository.findById`/`findAll`
+simply exclude `deletedAt IS NOT NULL` rows from their default reads, so
+a deleted mission disappears from the list/detail views but nothing
+about it is ever destroyed.
+
+An illegal delete attempt (mission not `DRAFT`) is rejected with
+`MISSION_NOT_DELETABLE`, the same stable-error-code convention as
+`MISSION_NOT_EDITABLE`/`MISSION_ILLEGAL_TRANSITION`.
+
 ## What's out of scope for Phase 2
 
 - No sub-states or progress percentages within `PROCESSING` — Phase 4/5

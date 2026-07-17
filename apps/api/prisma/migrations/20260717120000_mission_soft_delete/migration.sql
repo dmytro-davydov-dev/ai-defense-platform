@@ -1,0 +1,25 @@
+-- Mission soft delete — added as a scope extension beyond
+-- docs/mvp-plan/PRD-Phase-2.md's REQ-2.7 (which only ever listed create,
+-- get, list, update metadata, transition state). Documented in
+-- docs/architecture/Mission_State_Machine.md's "Deletion" section.
+--
+-- Hand-written: same reason as every migration in this directory since
+-- 20260714120000_kafka_event_platform's migration.sql — `prisma migrate
+-- dev`/`prisma migrate diff` could not be run in the sandbox that
+-- authored this migration (binaries.prisma.sh is network-blocked here,
+-- see docs/roadmap/Progress.md's Known gaps). This SQL was written by
+-- hand to match apps/api/prisma/schema.prisma's new `Mission.deletedAt`
+-- field. Verify with `prisma migrate diff --from-migrations
+-- ./prisma/migrations --to-schema-datamodel ./prisma/schema.prisma
+-- --shadow-database-url <url> --script` (or just `prisma migrate dev`)
+-- on a machine with network access before relying on this in a
+-- shared/deployed database, and regenerate the Prisma client (`prisma
+-- generate`) afterwards. Until then, `MissionsRepository` reads
+-- (`findById`/`findAll`) and the new `softDelete` use `$queryRaw`/
+-- `$executeRaw` against this column directly rather than the generated
+-- `mission` delegate, which doesn't know this column exists yet — same
+-- stale-client workaround already used for `Detection`/`TelemetryPoint`/
+-- `Outbox`/`ProcessedEvent`.
+
+-- AlterTable
+ALTER TABLE "missions" ADD COLUMN "deleted_at" TIMESTAMP(3);

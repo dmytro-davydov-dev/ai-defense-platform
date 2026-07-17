@@ -2,7 +2,9 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
   Param,
   Patch,
   Post,
@@ -124,6 +126,24 @@ export class MissionsController {
       correlationId: readCorrelationId(req),
     });
     return MissionResponseDto.fromRecord(mission);
+  }
+
+  @Delete(":id")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLE_NAMES.OPERATOR, ROLE_NAMES.ADMIN)
+  @HttpCode(204)
+  @ApiOperation({
+    summary: "Soft-delete a mission (only while DRAFT). Audit history is kept.",
+  })
+  async remove(
+    @Param("id") id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
+  ): Promise<void> {
+    await this.missionsService.deleteMission(id, {
+      actorUserId: user.userId,
+      correlationId: readCorrelationId(req),
+    });
   }
 
   @Post(":id/transition")

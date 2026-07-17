@@ -103,6 +103,17 @@ export const apiSlice = createApi({
       }),
       invalidatesTags: (_result, _error, { id }) => [{ type: "Mission", id }],
     }),
+    deleteMission: builder.mutation<void, string>({
+      // Soft delete, DRAFT-only — apps/api's MissionsService.deleteMission
+      // enforces this server-side (409 MISSION_NOT_DELETABLE otherwise);
+      // DeleteMissionButton.tsx only offers the control under the same
+      // condition MissionMetadataForm.tsx already uses for editing.
+      query: (id) => ({ url: `/missions/${id}`, method: "DELETE" }),
+      invalidatesTags: (_result, _error, id) => [
+        { type: "Mission", id },
+        { type: "Mission", id: "LIST" },
+      ],
+    }),
     transitionMission: builder.mutation<Mission, { id: string; body: TransitionMissionRequest }>({
       query: ({ id, body }) => ({
         url: `/missions/${id}/transition`,
@@ -171,6 +182,7 @@ export const {
   useGetMissionQuery,
   useCreateMissionMutation,
   useUpdateMissionMetadataMutation,
+  useDeleteMissionMutation,
   useTransitionMissionMutation,
   useCreateMissionUploadUrlMutation,
   useListDetectionsQuery,

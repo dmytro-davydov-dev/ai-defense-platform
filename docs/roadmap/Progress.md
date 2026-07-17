@@ -123,6 +123,7 @@ recorded in [[ADR-004-nestjs-orm]] (Prisma, status: accepted).
 
 - [x] REQ-2.7 — `MissionsModule` CRUD REST endpoints with DTO validation
 - [x] REQ-2.8 — state transitions via dedicated service method, audited — `MissionsService.transition()`, check-then-write with a concurrency re-check inside the DB transaction
+- [x] Scope extension (2026-07-17, beyond REQ-2.7's original create/get/list/update/transition list, per explicit request) — `DELETE /missions/:id`, DRAFT-only, **soft delete**: `Mission.deletedAt` (migration `20260717120000_mission_soft_delete`), `MissionsRepository.findById`/`findAll` exclude deleted rows via `$queryRaw` (generated client is stale — see Known gaps — so this follows `DetectionsRepository`'s raw-SQL pattern rather than the `mission` delegate). Hard delete rejected as an option: every mission has a `mission.created` `AuditLog` row from creation, so a hard delete would either fail the FK or force cascading away audit history, contradicting REQ-2.10's append-only guarantee. Rationale documented in [[Mission_State_Machine]]'s "Deletion" section. Unit tests (`missions.service.spec.ts`) and an e2e round-trip + illegal-delete test (`mission-lifecycle.e2e-spec.ts`) added; e2e not run in this sandbox (same no-docker limitation as REQ-2.14 below). Frontend: `useDeleteMissionMutation` (`apiSlice.ts`), `DeleteMissionButton.tsx` (confirmation dialog, same DRAFT+operator gating as `MissionMetadataForm.tsx`), wired into `MissionDetailPage.tsx`.
 
 ### Upload and storage
 
@@ -148,6 +149,19 @@ REQ-2.14 (integration tests) remains open, see below.
 
 ### Known gaps
 
+- **RESOLVED (2026-07-17).** `apps/api/prisma.config.ts` only loaded
+  `.env` (`import "dotenv/config"`), never `apps/api/.env.local` — found
+  when Dmytro hit `Error: The datasource.url property is required in
+  your Prisma config file when using prisma migrate deploy` running
+  `pnpm --filter @ai-defense/api exec prisma migrate deploy` on his own
+  machine to apply the mission soft-delete migration (see the mission
+  lifecycle scope-extension entry above) against a real Postgres. The
+  running app (`src/main.ts`) already explicitly loaded `.env.local` and
+  connected fine — only Prisma CLI commands were affected. Fixed by
+  making `prisma.config.ts` call `config({ path: "./.env.local" })` the
+  same way `main.ts` already did. Documented in full in [[API_Shell]]'s
+  Known gaps and [[Local_Development_Stack]]'s new ".env.local"
+  section.
 - **This sandbox still can't run `prisma generate`/`prisma migrate`
   itself** — network allowlist blocks `binaries.prisma.sh`
   (`403 Forbidden`, re-confirmed this session including with
@@ -744,6 +758,17 @@ needs confirming on a normal dev machine.
 
 ### Known gaps
 
+- **`eslint src` reports 30 pre-existing issues repo-wide** (confirmed
+  2026-07-17 while adding `DeleteMissionButton.tsx`): `no-floating-
+  promises` on bare `navigate(...)` calls and `no-confusing-void-
+  expression` on `() => setX(...)` arrow shorthand are already present
+  in untouched files (`CreateMissionDialog.tsx`, `TransitionControls.tsx`),
+  not something this session introduced. `DeleteMissionButton.tsx`
+  follows the same existing patterns for consistency rather than
+  diverging just for itself. `tsc --noEmit` is clean. Worth a dedicated
+  pass once `pnpm install` can run in this sandbox (see the entry below)
+  to confirm whether this is a stale-lockfile/eslint-config-version drift
+  or an intentional rule the codebase hasn't caught up to yet.
 - **`pnpm install` cannot run in this sandbox** — the same recurring
   `_tmp_*` EPERM-on-unlink mount restriction documented in every prior
   phase's Known gaps (Phase 4/5) blocks `pnpm`'s store-path check no

@@ -193,6 +193,69 @@ if (!INTEGRATION_READY) {
       );
     });
 
+    it("soft-deletes a DRAFT mission and excludes it from get/list, keeping its audit trail", async () => {
+      const { accessToken } = await registerOperator();
+      const created = await createMission(accessToken, "To be deleted");
+      const missionId = created.id;
+
+      await request(app.getHttpServer())
+        .delete(`/missions/${missionId}`)
+        .set("Authorization", `Bearer ${accessToken}`)
+        .expect(204);
+
+      await request(app.getHttpServer())
+        .get(`/missions/${missionId}`)
+        .set("Authorization", `Bearer ${accessToken}`)
+        .expect(404);
+
+      const listResponse = await request(app.getHttpServer())
+        .get("/missions")
+        .set("Authorization", `Bearer ${accessToken}`)
+        .expect(200);
+      const missions = listResponse.body as MissionResponseDto[];
+      expect(missions.some((mission) => mission.id === missionId)).toBe(false);
+
+      // The row and its audit trail (mission.created + mission.deleted)
+      // are kept, not cascaded away — REQ-2.10's append-only guarantee.
+      const auditRows = await pgClient.query<{ action: string }>(
+        `SELECT action FROM audit_log WHERE mission_id = $1 ORDER BY created_at ASC`,
+        [missionId],
+      );
+      expect(auditRows.rows.map((row) => row.action)).toEqual([
+        "mission.created",
+        "mission.deleted",
+      ]);
+    });
+
+    it("rejects deleting a mission once it has left DRAFT", async () => {
+      const { accessToken } = await registerOperator();
+      const created = await createMission(accessToken);
+      const missionId = created.id;
+
+      await request(app.getHttpServer())
+        .post(`/missions/${missionId}/upload-url`)
+        .set("Authorization", `Bearer ${accessToken}`)
+        .send({ fileName: "clip.mp4", contentType: "video/mp4" })
+        .expect(201);
+      await request(app.getHttpServer())
+        .post(`/missions/${missionId}/transition`)
+        .set("Authorization", `Bearer ${accessToken}`)
+        .send({ targetState: MissionStatus.QUEUED })
+        .expect(201);
+
+      const deleteResponse = await request(app.getHttpServer())
+        .delete(`/missions/${missionId}`)
+        .set("Authorization", `Bearer ${accessToken}`)
+        .expect(409);
+      const errorBody = deleteResponse.body as ErrorResponseBody;
+      expect(errorBody.message).toContain("MISSION_NOT_DELETABLE");
+
+      await request(app.getHttpServer())
+        .get(`/missions/${missionId}`)
+        .set("Authorization", `Bearer ${accessToken}`)
+        .expect(200);
+    });
+
     it("issues a signed upload URL, scoped to the mission, and attaches the object key (signed URL generation)", async () => {
       const { accessToken } = await registerOperator();
       const created = await createMission(accessToken);
