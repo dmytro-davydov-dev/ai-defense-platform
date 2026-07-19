@@ -256,6 +256,88 @@ if (!INTEGRATION_READY) {
         .expect(200);
     });
 
+    it("archives a non-DRAFT mission (no status restriction), hiding it from the default list but not the detail view, and unarchives it back", async () => {
+      const { accessToken } = await registerOperator();
+      const created = await createMission(accessToken, "Archive me");
+      const missionId = created.id;
+
+      // Move it out of DRAFT first — archiving is meant precisely for
+      // missions delete won't touch (QUEUED/PROCESSING/COMPLETED/FAILED).
+      await request(app.getHttpServer())
+        .post(`/missions/${missionId}/upload-url`)
+        .set("Authorization", `Bearer ${accessToken}`)
+        .send({ fileName: "clip.mp4", contentType: "video/mp4" })
+        .expect(201);
+      await request(app.getHttpServer())
+        .post(`/missions/${missionId}/transition`)
+        .set("Authorization", `Bearer ${accessToken}`)
+        .send({ targetState: MissionStatus.QUEUED })
+        .expect(201);
+
+      const archiveResponse = await request(app.getHttpServer())
+        .post(`/missions/${missionId}/archive`)
+        .set("Authorization", `Bearer ${accessToken}`)
+        .expect(201);
+      const archived = archiveResponse.body as MissionResponseDto;
+      expect(archived.archivedAt).not.toBeNull();
+      expect(archived.status).toBe(MissionStatus.QUEUED); // untouched
+
+      // Excluded from the default list...
+      const defaultList = await request(app.getHttpServer())
+        .get("/missions")
+        .set("Authorization", `Bearer ${accessToken}`)
+        .expect(200);
+      expect(
+        (defaultList.body as MissionResponseDto[]).some(
+          (mission) => mission.id === missionId,
+        ),
+      ).toBe(false);
+
+      // ...but included with includeArchived=true...
+      const fullList = await request(app.getHttpServer())
+        .get("/missions?includeArchived=true")
+        .set("Authorization", `Bearer ${accessToken}`)
+        .expect(200);
+      expect(
+        (fullList.body as MissionResponseDto[]).some(
+          (mission) => mission.id === missionId,
+        ),
+      ).toBe(true);
+
+      // ...and still directly reachable by id, state/audit trail intact.
+      await request(app.getHttpServer())
+        .get(`/missions/${missionId}`)
+        .set("Authorization", `Bearer ${accessToken}`)
+        .expect(200);
+      const auditAfterArchive = await pgClient.query<{ action: string }>(
+        `SELECT action FROM audit_log WHERE mission_id = $1 ORDER BY created_at ASC`,
+        [missionId],
+      );
+      expect(auditAfterArchive.rows.map((row) => row.action)).toEqual([
+        "mission.created",
+        "mission.video_attached",
+        "mission.transition",
+        "mission.archived",
+      ]);
+
+      const unarchiveResponse = await request(app.getHttpServer())
+        .post(`/missions/${missionId}/unarchive`)
+        .set("Authorization", `Bearer ${accessToken}`)
+        .expect(201);
+      const unarchived = unarchiveResponse.body as MissionResponseDto;
+      expect(unarchived.archivedAt).toBeNull();
+
+      const listAfterUnarchive = await request(app.getHttpServer())
+        .get("/missions")
+        .set("Authorization", `Bearer ${accessToken}`)
+        .expect(200);
+      expect(
+        (listAfterUnarchive.body as MissionResponseDto[]).some(
+          (mission) => mission.id === missionId,
+        ),
+      ).toBe(true);
+    });
+
     it("issues a signed upload URL, scoped to the mission, and attaches the object key (signed URL generation)", async () => {
       const { accessToken } = await registerOperator();
       const created = await createMission(accessToken);

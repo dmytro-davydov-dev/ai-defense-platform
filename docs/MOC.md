@@ -36,6 +36,7 @@ notes that build on it.
 ## Implementation notes — what Phase 1 actually built
 
 - [[Mission_State_Machine]] — Phase 2's mission lifecycle (draft → queued → processing → completed/failed).
+- [[Mission_Lifecycle]] — operator-facing read of the state machine, plus what "Live" and "Pre-annotated (Phase 5)" mean in the UI (state vs. socket/video-artifact indicators).
 - [[Web_Shell]] — `apps/web`, from the Phase 1 React+Vite scaffold to Phase 6's real Mission Workspace (auth, missions, upload, real-time, video overlay) to Phase 7's map container (telemetry route, detection markers, video-scrub sync).
 - [[API_Shell]] — `apps/api` NestJS scaffold.
 - [[Vision_Service_Shell]] — `apps/vision-service` FastAPI+uv scaffold.

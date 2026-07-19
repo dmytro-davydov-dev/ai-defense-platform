@@ -68,8 +68,18 @@ CRUD, identity/RBAC, upload URLs and audit logging incrementally.
   transitions, plus `DELETE /missions/:id` (soft delete, DRAFT-only — a
   scope extension beyond REQ-2.7's original list, see
   [[Mission_State_Machine]]'s "Deletion" section for why hard delete
-  isn't viable given the append-only `AuditLog` FK). `mission-state-
-  machine.ts` is pure domain logic (no
+  isn't viable given the append-only `AuditLog` FK) and
+  `POST /missions/:id/archive`/`.../unarchive` (a further scope
+  extension: no status restriction, fully reversible, controls only
+  `GET /missions`'s default-list visibility via `?includeArchived=true`
+  — see [[Mission_State_Machine]]'s "Archiving" section). The generated
+  Prisma client predates `deletedAt`/`archivedAt`
+  (migrations `20260717120000_mission_soft_delete`/
+  `20260717150000_mission_archive`), so `MissionsRepository` now uses
+  `$queryRaw`/`$executeRaw` throughout — every write still goes through
+  the typed `mission` delegate first, then re-reads via raw SQL to
+  return a fully-populated record; see that file's header comment.
+  `mission-state-machine.ts` is pure domain logic (no
   Prisma/Nest import beyond the `MissionStatus` enum) implementing
   [[Mission_State_Machine]]'s legal-transition table — unit-tested in
   isolation per REQ-2.13. `MissionsService.transition()` is the only

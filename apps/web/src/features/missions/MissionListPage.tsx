@@ -12,6 +12,9 @@ import TableRow from "@mui/material/TableRow";
 import Paper from "@mui/material/Paper";
 import CircularProgress from "@mui/material/CircularProgress";
 import Alert from "@mui/material/Alert";
+import Chip from "@mui/material/Chip";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import Switch from "@mui/material/Switch";
 import AddIcon from "@mui/icons-material/Add";
 import { useListMissionsQuery } from "../../api/apiSlice";
 import { extractErrorMessage } from "../../shared/errors";
@@ -20,7 +23,13 @@ import { CreateMissionDialog } from "./CreateMissionDialog";
 
 /** REQ-6.9: mission list — the operator's landing page after login. */
 export function MissionListPage() {
-  const { data: missions, isLoading, error } = useListMissionsQuery();
+  const [showArchived, setShowArchived] = useState(false);
+  // Default (`false`) matches apps/api's `GET /missions` default — a
+  // working list doesn't fill up with missions an operator already
+  // archived. Toggling refetches from a separate RTK Query cache entry
+  // for that arg, not a client-side filter, so it always reflects the
+  // server's current state.
+  const { data: missions, isLoading, error } = useListMissionsQuery(showArchived);
   const [dialogOpen, setDialogOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -35,16 +44,40 @@ export function MissionListPage() {
         }}
       >
         <Typography variant="h5">Missions</Typography>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDialogOpen(true)}>
-          New mission
-        </Button>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+          <FormControlLabel
+            control={
+              <Switch
+                size="small"
+                checked={showArchived}
+                onChange={(event) => {
+                  setShowArchived(event.target.checked);
+                }}
+              />
+            }
+            label="Show archived"
+          />
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => {
+              setDialogOpen(true);
+            }}
+          >
+            New mission
+          </Button>
+        </Box>
       </Box>
 
       {isLoading ? <CircularProgress size={24} /> : null}
       {error ? <Alert severity="error">{extractErrorMessage(error)}</Alert> : null}
 
-      {missions && missions.length === 0 ? (
-        <Typography color="text.secondary">No missions yet — create one to get started.</Typography>
+      {missions?.length === 0 ? (
+        <Typography color="text.secondary">
+          {showArchived
+            ? "No missions yet — create one to get started."
+            : 'No active missions — create one to get started, or turn on "Show archived" to see archived ones.'}
+        </Typography>
       ) : null}
 
       {missions && missions.length > 0 ? (
@@ -62,12 +95,19 @@ export function MissionListPage() {
                 <TableRow
                   key={mission.id}
                   hover
-                  onClick={() => navigate(`/missions/${mission.id}`)}
+                  onClick={() => {
+                    void navigate(`/missions/${mission.id}`);
+                  }}
                   sx={{ cursor: "pointer" }}
                 >
                   <TableCell>{mission.title}</TableCell>
                   <TableCell>
-                    <MissionStatusBadge status={mission.status} />
+                    <Box sx={{ display: "flex", gap: 1 }}>
+                      <MissionStatusBadge status={mission.status} />
+                      {mission.archivedAt ? (
+                        <Chip size="small" variant="outlined" color="default" label="Archived" />
+                      ) : null}
+                    </Box>
                   </TableCell>
                   <TableCell>{new Date(mission.createdAt).toLocaleString()}</TableCell>
                 </TableRow>
@@ -77,7 +117,12 @@ export function MissionListPage() {
         </TableContainer>
       ) : null}
 
-      <CreateMissionDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
+      <CreateMissionDialog
+        open={dialogOpen}
+        onClose={() => {
+          setDialogOpen(false);
+        }}
+      />
     </Box>
   );
 }

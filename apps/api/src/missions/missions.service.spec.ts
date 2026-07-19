@@ -13,6 +13,7 @@ describe("MissionsService (REQ-2.7/2.8/2.13)", () => {
     createdById: "user-1",
     createdAt: new Date("2026-01-01T00:00:00Z"),
     updatedAt: new Date("2026-01-01T00:00:00Z"),
+    archivedAt: null,
   };
 
   let repo: {
@@ -23,6 +24,8 @@ describe("MissionsService (REQ-2.7/2.8/2.13)", () => {
     updateStatus: jest.Mock;
     setVideoObjectKey: jest.Mock;
     softDelete: jest.Mock;
+    archive: jest.Mock;
+    unarchive: jest.Mock;
   };
   let audit: { record: jest.Mock };
   let outbox: { insert: jest.Mock };
@@ -38,6 +41,8 @@ describe("MissionsService (REQ-2.7/2.8/2.13)", () => {
       updateStatus: jest.fn(),
       setVideoObjectKey: jest.fn(),
       softDelete: jest.fn().mockResolvedValue(undefined),
+      archive: jest.fn().mockResolvedValue(undefined),
+      unarchive: jest.fn().mockResolvedValue(undefined),
     };
     audit = { record: jest.fn().mockResolvedValue(undefined) };
     outbox = { insert: jest.fn().mockResolvedValue("event-1") };
@@ -285,6 +290,94 @@ describe("MissionsService (REQ-2.7/2.8/2.13)", () => {
         }),
         "fake-tx",
       );
+    });
+  });
+
+  describe("archiveMission", () => {
+    it("throws NotFoundException when the mission doesn't exist", async () => {
+      repo.findById.mockResolvedValue(null);
+      await expect(
+        service.archiveMission("missing", { actorUserId: "user-1" }),
+      ).rejects.toThrow(NotFoundException);
+      expect(repo.archive).not.toHaveBeenCalled();
+    });
+
+    it("archives a mission regardless of status and writes an audit record inside the same transaction", async () => {
+      const queued = { ...baseMission, status: MissionStatus.QUEUED };
+      repo.findById
+        .mockResolvedValueOnce(queued) // getMission()
+        .mockResolvedValueOnce({
+          ...queued,
+          archivedAt: new Date("2026-07-17T00:00:00Z"),
+        }); // re-read inside the transaction
+
+      const result = await service.archiveMission("mission-1", {
+        actorUserId: "user-1",
+        correlationId: "corr-1",
+      });
+
+      expect(result.archivedAt).toEqual(new Date("2026-07-17T00:00:00Z"));
+      expect(repo.archive).toHaveBeenCalledWith("mission-1", "fake-tx");
+      expect(audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: "mission.archived",
+          missionId: "mission-1",
+          actorUserId: "user-1",
+          correlationId: "corr-1",
+        }),
+        "fake-tx",
+      );
+    });
+  });
+
+  describe("unarchiveMission", () => {
+    it("throws NotFoundException when the mission doesn't exist", async () => {
+      repo.findById.mockResolvedValue(null);
+      await expect(
+        service.unarchiveMission("missing", { actorUserId: "user-1" }),
+      ).rejects.toThrow(NotFoundException);
+      expect(repo.unarchive).not.toHaveBeenCalled();
+    });
+
+    it("unarchives a mission and writes an audit record inside the same transaction", async () => {
+      const archived = {
+        ...baseMission,
+        archivedAt: new Date("2026-07-17T00:00:00Z"),
+      };
+      repo.findById
+        .mockResolvedValueOnce(archived) // getMission()
+        .mockResolvedValueOnce(baseMission); // re-read inside the transaction, archivedAt cleared
+
+      const result = await service.unarchiveMission("mission-1", {
+        actorUserId: "user-1",
+        correlationId: "corr-1",
+      });
+
+      expect(result.archivedAt).toBeNull();
+      expect(repo.unarchive).toHaveBeenCalledWith("mission-1", "fake-tx");
+      expect(audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: "mission.unarchived",
+          missionId: "mission-1",
+          actorUserId: "user-1",
+          correlationId: "corr-1",
+        }),
+        "fake-tx",
+      );
+    });
+  });
+
+  describe("listMissions", () => {
+    it("defaults includeArchived to false", async () => {
+      repo.findAll.mockResolvedValue([]);
+      await service.listMissions();
+      expect(repo.findAll).toHaveBeenCalledWith(false);
+    });
+
+    it("passes includeArchived through when set", async () => {
+      repo.findAll.mockResolvedValue([]);
+      await service.listMissions(true);
+      expect(repo.findAll).toHaveBeenCalledWith(true);
     });
   });
 

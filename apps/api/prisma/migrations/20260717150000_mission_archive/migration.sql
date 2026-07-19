@@ -1,0 +1,22 @@
+-- Mission archiving — orthogonal to both `status` and the soft-delete
+-- `deleted_at` column added in 20260717120000_mission_soft_delete.
+-- Documented in docs/architecture/Mission_State_Machine.md's
+-- "Archiving" section. Added per explicit request after the DRAFT-only
+-- delete restriction turned out to leave no way to get a non-DRAFT
+-- mission out of the default list view.
+--
+-- Hand-written: same reason as every migration in this directory since
+-- 20260714120000_kafka_event_platform's migration.sql — `prisma migrate
+-- dev`/`prisma migrate diff` could not be run in the sandbox that
+-- authored this migration (binaries.prisma.sh is network-blocked here,
+-- see docs/roadmap/Progress.md's Known gaps). Verify with `prisma
+-- migrate diff --from-migrations ./prisma/migrations --to-schema-datamodel
+-- ./prisma/schema.prisma --shadow-database-url <url> --script` (or just
+-- `prisma migrate dev`) on a machine with network access before relying
+-- on this in a shared/deployed database, and regenerate the Prisma
+-- client (`prisma generate`) afterwards. Until then, `MissionsRepository`
+-- reads/writes this column via `$queryRaw`/`$executeRaw`, same as
+-- `deleted_at`.
+
+-- AlterTable
+ALTER TABLE "missions" ADD COLUMN "archived_at" TIMESTAMP(3);

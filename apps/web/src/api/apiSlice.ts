@@ -71,8 +71,13 @@ export const apiSlice = createApi({
     }),
 
     // --- Missions (REQ-6.9/6.10) ---
-    listMissions: builder.query<Mission[], void>({
-      query: () => "/missions",
+    listMissions: builder.query<Mission[], boolean>({
+      // `includeArchived` (default false — matches apps/api's
+      // `GET /missions` default) — MissionListPage's "Show archived"
+      // toggle passes `true`. RTK Query caches each distinct arg
+      // separately, so toggling doesn't clobber the other list's cache.
+      query: (includeArchived) =>
+        includeArchived ? "/missions?includeArchived=true" : "/missions",
       providesTags: (result) =>
         result
           ? [
@@ -109,6 +114,22 @@ export const apiSlice = createApi({
       // DeleteMissionButton.tsx only offers the control under the same
       // condition MissionMetadataForm.tsx already uses for editing.
       query: (id) => ({ url: `/missions/${id}`, method: "DELETE" }),
+      invalidatesTags: (_result, _error, id) => [
+        { type: "Mission", id },
+        { type: "Mission", id: "LIST" },
+      ],
+    }),
+    archiveMission: builder.mutation<Mission, string>({
+      // No status restriction (unlike deleteMission) — hides a mission
+      // from the default list without touching state/audit trail.
+      query: (id) => ({ url: `/missions/${id}/archive`, method: "POST" }),
+      invalidatesTags: (_result, _error, id) => [
+        { type: "Mission", id },
+        { type: "Mission", id: "LIST" },
+      ],
+    }),
+    unarchiveMission: builder.mutation<Mission, string>({
+      query: (id) => ({ url: `/missions/${id}/unarchive`, method: "POST" }),
       invalidatesTags: (_result, _error, id) => [
         { type: "Mission", id },
         { type: "Mission", id: "LIST" },
@@ -183,6 +204,8 @@ export const {
   useCreateMissionMutation,
   useUpdateMissionMetadataMutation,
   useDeleteMissionMutation,
+  useArchiveMissionMutation,
+  useUnarchiveMissionMutation,
   useTransitionMissionMutation,
   useCreateMissionUploadUrlMutation,
   useListDetectionsQuery,

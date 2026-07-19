@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UploadedFile,
   UseGuards,
@@ -19,6 +20,7 @@ import {
   ApiBearerAuth,
   ApiConsumes,
   ApiOperation,
+  ApiQuery,
   ApiTags,
 } from "@nestjs/swagger";
 import { CORRELATION_ID_HEADER } from "@ai-defense/observability";
@@ -97,9 +99,20 @@ export class MissionsController {
 
   @Get()
   @UseGuards(JwtAuthGuard)
+  @ApiQuery({
+    name: "includeArchived",
+    required: false,
+    type: Boolean,
+    description:
+      "Include archived missions (excluded by default so a working list doesn't fill up with missions an operator has already dealt with).",
+  })
   @ApiOperation({ summary: "List all missions." })
-  async list(): Promise<MissionResponseDto[]> {
-    const missions = await this.missionsService.listMissions();
+  async list(
+    @Query("includeArchived") includeArchived?: string,
+  ): Promise<MissionResponseDto[]> {
+    const missions = await this.missionsService.listMissions(
+      includeArchived === "true",
+    );
     return missions.map((mission) => MissionResponseDto.fromRecord(mission));
   }
 
@@ -144,6 +157,43 @@ export class MissionsController {
       actorUserId: user.userId,
       correlationId: readCorrelationId(req),
     });
+  }
+
+  @Post(":id/archive")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLE_NAMES.OPERATOR, ROLE_NAMES.ADMIN)
+  @ApiOperation({
+    summary:
+      "Archive a mission (hides it from the default list — no status restriction, no change to state/audit trail).",
+  })
+  async archive(
+    @Param("id") id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
+  ): Promise<MissionResponseDto> {
+    const mission = await this.missionsService.archiveMission(id, {
+      actorUserId: user.userId,
+      correlationId: readCorrelationId(req),
+    });
+    return MissionResponseDto.fromRecord(mission);
+  }
+
+  @Post(":id/unarchive")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLE_NAMES.OPERATOR, ROLE_NAMES.ADMIN)
+  @ApiOperation({
+    summary: "Reverse archive(), restoring default-list visibility.",
+  })
+  async unarchive(
+    @Param("id") id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
+  ): Promise<MissionResponseDto> {
+    const mission = await this.missionsService.unarchiveMission(id, {
+      actorUserId: user.userId,
+      correlationId: readCorrelationId(req),
+    });
+    return MissionResponseDto.fromRecord(mission);
   }
 
   @Post(":id/transition")

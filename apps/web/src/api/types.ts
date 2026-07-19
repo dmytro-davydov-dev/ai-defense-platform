@@ -70,6 +70,7 @@ export interface Mission {
   createdById: string;
   createdAt: string;
   updatedAt: string;
+  archivedAt: string | null;
 }
 
 /** apps/api/src/missions/dto/create-mission.dto.ts */

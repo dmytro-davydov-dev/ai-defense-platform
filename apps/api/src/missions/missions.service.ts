@@ -7,6 +7,7 @@ import { EVENT_TYPES } from "@ai-defense/event-schemas";
 import type { MissionProcessingRequestedPayload } from "@ai-defense/event-schemas";
 import { MissionStatus } from "../../generated/prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import type { PrismaExecutor } from "../prisma/prisma.types";
 import { AuditService } from "../audit/audit.service";
 import { OutboxRepository } from "../outbox/outbox.repository";
 import { MissionsRepository } from "./missions.repository";
@@ -76,8 +77,8 @@ export class MissionsService {
     return mission;
   }
 
-  listMissions(): Promise<MissionRecord[]> {
-    return this.missionsRepository.findAll();
+  listMissions(includeArchived = false): Promise<MissionRecord[]> {
+    return this.missionsRepository.findAll(includeArchived);
   }
 
   async updateMetadata(
@@ -234,6 +235,68 @@ export class MissionsService {
         tx,
       );
     });
+  }
+
+  /**
+   * Orthogonal to the state machine and to soft delete — no status
+   * restriction (unlike `deleteMission`), since archiving never touches
+   * `status`, video, detections, or telemetry, only default-list
+   * visibility. Added after `deleteMission`'s DRAFT-only restriction
+   * turned out to leave no way to get a QUEUED/PROCESSING/COMPLETED/
+   * FAILED mission out of an operator's working list. See
+   * docs/architecture/Mission_State_Machine.md's "Archiving" section.
+   */
+  async archiveMission(id: string, ctx: ActionContext): Promise<MissionRecord> {
+    await this.getMission(id);
+    return this.prisma.$transaction(async (tx) => {
+      await this.missionsRepository.archive(id, tx);
+      await this.auditService.record(
+        {
+          actorUserId: ctx.actorUserId,
+          action: "mission.archived",
+          targetType: "mission",
+          targetId: id,
+          missionId: id,
+          correlationId: ctx.correlationId,
+        },
+        tx,
+      );
+      return this.mustFindByIdInTransaction(id, tx);
+    });
+  }
+
+  async unarchiveMission(
+    id: string,
+    ctx: ActionContext,
+  ): Promise<MissionRecord> {
+    await this.getMission(id);
+    return this.prisma.$transaction(async (tx) => {
+      await this.missionsRepository.unarchive(id, tx);
+      await this.auditService.record(
+        {
+          actorUserId: ctx.actorUserId,
+          action: "mission.unarchived",
+          targetType: "mission",
+          targetId: id,
+          missionId: id,
+          correlationId: ctx.correlationId,
+        },
+        tx,
+      );
+      return this.mustFindByIdInTransaction(id, tx);
+    });
+  }
+
+  /** `getMission()` can't be reused inside these transactions: it calls `missionsRepository.findById` with the default (non-transactional) executor, which wouldn't see the archive/unarchive write made moments earlier in the same not-yet-committed transaction. */
+  private async mustFindByIdInTransaction(
+    id: string,
+    tx: PrismaExecutor,
+  ): Promise<MissionRecord> {
+    const mission = await this.missionsRepository.findById(id, tx);
+    if (!mission) {
+      throw new NotFoundException("MISSION_NOT_FOUND");
+    }
+    return mission;
   }
 
   async attachVideo(

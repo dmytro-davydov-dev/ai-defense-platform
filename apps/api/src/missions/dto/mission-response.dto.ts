@@ -11,6 +11,7 @@ export class MissionResponseDto {
   @ApiProperty() createdById!: string;
   @ApiProperty() createdAt!: string;
   @ApiProperty() updatedAt!: string;
+  @ApiProperty({ nullable: true, type: String }) archivedAt!: string | null;
 
   static fromRecord(mission: MissionRecord): MissionResponseDto {
     const dto = new MissionResponseDto();
@@ -22,6 +23,9 @@ export class MissionResponseDto {
     dto.createdById = mission.createdById;
     dto.createdAt = mission.createdAt.toISOString();
     dto.updatedAt = mission.updatedAt.toISOString();
+    dto.archivedAt = mission.archivedAt
+      ? mission.archivedAt.toISOString()
+      : null;
     return dto;
   }
 }

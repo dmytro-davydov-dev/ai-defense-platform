@@ -65,6 +65,16 @@ model Mission {
   // Restricted to DRAFT-status missions at the service layer (same rule
   // as metadata edits) — see docs/architecture/Mission_State_Machine.md.
   deletedAt      DateTime?     @map("deleted_at")
+  // Archiving is orthogonal to both `status` and `deletedAt`: it never
+  // touches the state machine and carries no restriction on which
+  // status a mission can be archived from (unlike delete, which is
+  // DRAFT-only) — it only controls default-list visibility.
+  // `MissionsRepository.findAll` excludes `archivedAt IS NOT NULL` rows
+  // unless the caller opts in (`GET /missions?includeArchived=true`);
+  // `findById` never filters on it, so an archived mission's detail page
+  // and its audit trail stay fully reachable. See
+  // docs/architecture/Mission_State_Machine.md's "Archiving" section.
+  archivedAt     DateTime?     @map("archived_at")
   auditLogs      AuditLog[]
   detections     Detection[]
   telemetryPoints TelemetryPoint[]

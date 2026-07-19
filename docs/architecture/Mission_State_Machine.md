@@ -81,6 +81,28 @@ An illegal delete attempt (mission not `DRAFT`) is rejected with
 `MISSION_NOT_DELETABLE`, the same stable-error-code convention as
 `MISSION_NOT_EDITABLE`/`MISSION_ILLEGAL_TRANSITION`.
 
+## Archiving
+
+Added after Deletion's DRAFT-only restriction turned out to leave no way
+to get a QUEUED/PROCESSING/COMPLETED/FAILED mission out of an operator's
+default working list — per explicit request.
+
+`archivedAt` is a separate column from both `status` and `deletedAt`,
+and carries no restriction on which state a mission can be archived
+from: `POST /missions/:id/archive`/`POST /missions/:id/unarchive` work
+identically regardless of `status`, because archiving never touches the
+state machine, video, detections, or telemetry — only whether
+`GET /missions` includes the mission by default.
+`MissionsRepository.findAll` excludes `archivedAt IS NOT NULL` rows
+unless the caller passes `?includeArchived=true`; `findById` never
+filters on `archivedAt`, so an archived mission's detail page, its
+detections/telemetry, and its full audit trail (`mission.archived`/
+`mission.unarchived` rows, same append-only `AuditLog` as every other
+mission action) stay exactly as reachable as before. Unlike Deletion,
+this is fully reversible — `unarchive` just clears the column back to
+`NULL` — since nothing about archiving is destructive or claims a
+mission "didn't happen."
+
 ## What's out of scope for Phase 2
 
 - No sub-states or progress percentages within `PROCESSING` — Phase 4/5
@@ -103,3 +125,5 @@ An illegal delete attempt (mission not `DRAFT`) is rejected with
 - [[MVP_Implementation_Plan]] — Phase 3 (outbox publishes from
   `QUEUED`), Phase 4 (vision worker drives `PROCESSING` →
   `COMPLETED`/`FAILED`).
+- [[Mission_Lifecycle]] — operator-facing read of this state machine,
+  plus the UI elements that look like lifecycle state but aren't.

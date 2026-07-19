@@ -9,6 +9,13 @@ export interface MissionRecord {
   createdById: string;
   createdAt: Date;
   updatedAt: Date;
+  // Orthogonal to `status`/`deletedAt` — see schema.prisma's comment on
+  // `Mission.archivedAt`. `null` means active/visible in the default
+  // list. Deliberately not present on `CreateMissionInput`/
+  // `UpdateMissionMetadataInput` below: it's never set at creation and
+  // never touched by a metadata edit, only by
+  // `MissionsRepository.archive()`/`unarchive()`.
+  archivedAt: Date | null;
 }
 
 export interface CreateMissionInput {

@@ -185,6 +185,7 @@
   },
   "active": "c526e72e4765129c",
   "lastOpenFiles": [
+    "architecture/Mission_Lifecycle.md",
     "mvp-plan/PRD-Phase-8.md",
     "adr/ADR-007-map-library-choice.md",
     "mvp-plan/PRD-Phase-7.md",
@@ -211,7 +212,6 @@
     "kafka/Local_Kafka_Redpanda.md",
     "frontend/Web_Shell.md",
     "devops/Local_Development_Stack.md",
-    "python/Vision_Service_Shell.md",
     "infra",
     "untitled folder"
   ]

@@ -20,6 +20,7 @@ import { useMissionSocket } from "../realtime/useMissionSocket";
 import { MissionStatusBadge } from "./MissionStatusBadge";
 import { MissionMetadataForm } from "./MissionMetadataForm";
 import { DeleteMissionButton } from "./DeleteMissionButton";
+import { ArchiveMissionButton } from "./ArchiveMissionButton";
 import { TransitionControls } from "./TransitionControls";
 import { UploadPanel } from "./UploadPanel";
 import { StatsPanel } from "./StatsPanel";
@@ -74,6 +75,9 @@ export function MissionDetailPage() {
       <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 1 }} flexWrap="wrap">
         <Typography variant="h5">{mission.title}</Typography>
         <MissionStatusBadge status={mission.status} />
+        {mission.archivedAt ? (
+          <Chip size="small" variant="outlined" color="default" label="Archived" />
+        ) : null}
         <Chip
           size="small"
           variant="outlined"
@@ -92,12 +96,19 @@ export function MissionDetailPage() {
         <UploadPanel mission={mission} />
         <TelemetryUploadPanel missionId={missionId} />
         <TransitionControls mission={mission} />
+        <ArchiveMissionButton mission={mission} />
         <DeleteMissionButton mission={mission} />
       </Stack>
 
       <Divider sx={{ mb: 2 }} />
 
-      <Tabs value={tab} onChange={(_event, value: DetailTab) => setTab(value)} sx={{ mb: 2 }}>
+      <Tabs
+        value={tab}
+        onChange={(_event, value: DetailTab) => {
+          setTab(value);
+        }}
+        sx={{ mb: 2 }}
+      >
         <Tab value="overview" label="Overview" />
         <Tab value="timeline" label="Event timeline" />
         <Tab value="audit" label="Audit trail" />
